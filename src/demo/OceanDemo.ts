@@ -18,7 +18,7 @@ function createDefaultParameters(): OceanSimulationParameters {
     gravity: 9.81,
     smallWaveDamping: 0.02,
     seed: 1337,
-    heightScale: 70,
+    heightScale: 0.2,
     timeScale: 1,
   };
 }
@@ -73,6 +73,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   root.appendChild(stats.element);
 
   const clock = new THREE.Clock();
+  let framePending = false;
 
   const resize = () => {
     const width = window.innerWidth;
@@ -86,12 +87,24 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   window.addEventListener('resize', resize);
 
   renderer.setAnimationLoop(() => {
+    if (framePending) {
+      return;
+    }
+
+    framePending = true;
     const deltaSeconds = Math.min(clock.getDelta(), 1 / 20);
 
-    void simulation.update(renderer, deltaSeconds);
-    controls.update();
-    stats.update(deltaSeconds);
-    renderer.render(scene, camera);
+    void (async () => {
+      try {
+        await simulation.update(renderer, deltaSeconds);
+        await water.update(renderer);
+        controls.update();
+        stats.update(deltaSeconds);
+        renderer.render(scene, camera);
+      } finally {
+        framePending = false;
+      }
+    })();
   });
 
   window.addEventListener('beforeunload', () => {

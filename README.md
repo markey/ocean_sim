@@ -31,8 +31,8 @@ npm run build
 1. CPU creates `h0(k)` and conjugate `h0(-k)` data in a float `DataTexture`.
 2. A WebGPU compute pass evolves the complex spectrum with the deep-water dispersion relation.
 3. The FFT module runs horizontal and vertical inverse FFT passes through float storage textures.
-4. A final compute pass normalizes the real component and applies checkerboard sign correction for the centered spectrum.
-5. The water material samples the height texture in the vertex stage and moves the mesh vertically.
+4. A final compute pass extracts the real component and applies checkerboard sign correction for the centered spectrum. Milestone 1 leaves final amplitude normalization to the debug height scale so the proof-of-life displacement is visible.
+5. A second compute pass writes displaced mesh positions into a WebGPU storage buffer attribute consumed by the water material.
 
 The compute kernels are authored with `wgslFn` and dispatched through Three.js TSL `compute()`/`renderer.computeAsync()`. This keeps the app inside Three's WebGPU resource model while avoiding fragile node-graph code for loop-heavy FFT math.
 

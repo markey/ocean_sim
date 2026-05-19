@@ -96,7 +96,9 @@ fn complexToHeight(
   let coord = vec2<i32>(i32(x), i32(y));
   let value = textureLoad(source, coord, 0).x;
   let checker = select(-1.0, 1.0, ((x + y) & 1u) == 0u);
-  let normalized = value * checker / f32(resolution * resolution);
+  // Keep Milestone 1's debug output visibly displaced. Physical amplitude
+  // calibration can divide by resolution^2 once normals/choppiness land.
+  let normalized = value * checker;
 
   textureStore(target, coord, vec4<f32>(normalized, normalized, normalized, 1.0));
 }
