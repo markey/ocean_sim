@@ -23,11 +23,13 @@ export class WaterMesh {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshStandardNodeMaterial;
   private readonly basePositions: Float32Array;
+  private readonly resolution: number;
   private readonly patchSizeUniform = uniform(160);
   private readonly foamStrengthUniform = uniform(1.35);
 
   constructor(surface: OceanSurfaceProvider) {
     const { resolution, patchSize } = surface.parameters;
+    this.resolution = resolution;
     this.patchSizeUniform.value = patchSize;
     const geometry = new THREE.PlaneGeometry(
       patchSize,
@@ -125,6 +127,41 @@ export class WaterMesh {
     positions.needsUpdate = true;
     normalAttribute.needsUpdate = true;
     void renderer;
+  }
+
+  /**
+   * World-space water height at (worldX, worldZ) from the displaced mesh vertices.
+   * Matches the rendered surface used by buoyancy (call after {@link update}).
+   */
+  sampleWorldHeight(worldX: number, worldZ: number): number {
+    const positionAttribute = this.mesh.geometry.attributes.position as THREE.BufferAttribute;
+    const positions = positionAttribute.array as Float32Array;
+    const patchSize = this.patchSizeUniform.value;
+    const resolution = this.resolution;
+    const halfPatch = patchSize * 0.5;
+    const wrappedU = (worldX + halfPatch) / patchSize - Math.floor((worldX + halfPatch) / patchSize);
+    const wrappedV = (worldZ + halfPatch) / patchSize - Math.floor((worldZ + halfPatch) / patchSize);
+    const su = wrappedU * (resolution - 1);
+    const sv = wrappedV * (resolution - 1);
+    const x0 = Math.floor(su);
+    const y0 = Math.floor(sv);
+    const x1 = Math.min(x0 + 1, resolution - 1);
+    const y1 = Math.min(y0 + 1, resolution - 1);
+    const fu = su - x0;
+    const fv = sv - y0;
+
+    const readWorldY = (simX: number, simY: number) => {
+      const vertexIndex = (resolution - 1 - simY) * resolution + simX;
+      return positions[vertexIndex * 3 + 2] ?? 0;
+    };
+
+    const h00 = readWorldY(x0, y0);
+    const h10 = readWorldY(x1, y0);
+    const h01 = readWorldY(x0, y1);
+    const h11 = readWorldY(x1, y1);
+    const lerp = (a: number, b: number, t: number) => a * (1 - t) + b * t;
+
+    return lerp(lerp(h00, h10, fu), lerp(h01, h11, fu), fv);
   }
 
   /** Height scale is applied per cascade; kept for debug UI compatibility. */

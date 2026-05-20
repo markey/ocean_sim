@@ -1,4 +1,7 @@
 import GUI from 'lil-gui';
+import type { FloatingBoat } from '../buoyancy/FloatingBoat';
+import type { FloatingSphere } from '../buoyancy/FloatingSphere';
+import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from '../buoyancy/types';
 import { OCEAN_PRESETS, OCEAN_PRESET_IDS } from '../spectrum/presets';
 import type { OceanPreset, OceanPresetId } from '../spectrum/types';
 import {
@@ -18,6 +21,15 @@ type DebugGuiState = OceanCascadeSystemParameters & {
   debugView: DebugTextureMode;
   debugCascade: DebugCascadeTarget;
   foam: FoamParameters & { renderStrength: number };
+  buoyancy: BuoyancyParameters & {
+    sphereEnabled: boolean;
+    boatEnabled: boolean;
+  };
+};
+
+export type BuoyancyDebugTargets = {
+  sphere: FloatingSphere;
+  boat: FloatingBoat;
 };
 
 function refreshGuiDisplays(gui: GUI): void {
@@ -35,6 +47,7 @@ export class DebugControls {
     cascadeSystem: OceanCascadeSystem,
     water: WaterMesh,
     debugView: DebugTextureView,
+    buoyancyTargets?: BuoyancyDebugTargets,
   ) {
     this.gui = new GUI({ title: 'Spectral Ocean' });
     this.state = {
@@ -49,6 +62,11 @@ export class DebugControls {
       debugView: 'off',
       debugCascade: 'combined',
       foam: { ...DEFAULT_FOAM_PARAMETERS, renderStrength: 1.35 },
+      buoyancy: {
+        ...DEFAULT_BUOYANCY_PARAMETERS,
+        sphereEnabled: true,
+        boatEnabled: true,
+      },
     };
 
     const syncGlobalSpectrum = () => {
@@ -237,6 +255,57 @@ export class DebugControls {
       .decimals(2)
       .onChange(syncFoam);
     foamFolder.add({ clear: () => cascadeSystem.clearFoam() }, 'clear').name('Clear foam');
+
+    if (buoyancyTargets) {
+      const { sphere, boat } = buoyancyTargets;
+      const syncBuoyancy = () => {
+        const { sphereEnabled, boatEnabled, ...params } = this.state.buoyancy;
+        Object.assign(sphere.buoyancy, params);
+        Object.assign(boat.buoyancy, params);
+        sphere.enabled = sphereEnabled;
+        boat.enabled = boatEnabled;
+      };
+
+      const buoyancyFolder = this.gui.addFolder('Buoyancy');
+      buoyancyFolder
+        .add(this.state.buoyancy, 'sphereEnabled')
+        .name('Sphere')
+        .onChange(syncBuoyancy);
+      buoyancyFolder.add(this.state.buoyancy, 'boatEnabled').name('Boat').onChange(syncBuoyancy);
+      buoyancyFolder
+        .add(this.state.buoyancy, 'verticalStiffness', 8, 120, 1)
+        .name('Vertical stiffness')
+        .onChange(syncBuoyancy);
+      buoyancyFolder
+        .add(this.state.buoyancy, 'dampingRatio', 0.5, 2, 0.05)
+        .name('Damping ratio')
+        .decimals(2)
+        .onChange(syncBuoyancy);
+      buoyancyFolder
+        .add(this.state.buoyancy, 'heightFollowRate', 1, 16, 0.5)
+        .name('Height follow')
+        .decimals(1)
+        .onChange(syncBuoyancy);
+      buoyancyFolder
+        .add(this.state.buoyancy, 'linearDrag', 0, 4, 0.1)
+        .name('Linear drag')
+        .onChange(syncBuoyancy);
+      buoyancyFolder
+        .add(this.state.buoyancy, 'orientationBlend', 0.5, 12, 0.1)
+        .name('Orientation blend')
+        .onChange(syncBuoyancy);
+      buoyancyFolder
+        .add(
+          {
+            resetSphere: () => sphere.reset(),
+            resetBoat: () => boat.reset(),
+          },
+          'resetSphere',
+        )
+        .name('Reset sphere');
+      buoyancyFolder.add({ resetBoat: () => boat.reset() }, 'resetBoat').name('Reset boat');
+      syncBuoyancy();
+    }
 
     const debugFolder = this.gui.addFolder('Debug views');
     debugFolder

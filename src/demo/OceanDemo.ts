@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu';
 import WebGPU from 'three/addons/capabilities/WebGPU.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { FloatingBoat, FloatingSphere } from '../ocean/buoyancy';
 import { DebugControls } from '../ocean/debug/DebugControls';
 import { DebugTextureView } from '../ocean/debug/DebugTextureView';
 import { WaterMesh } from '../ocean/rendering/WaterMesh';
@@ -20,7 +21,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   scene.background = new THREE.Color(0x8ab7c9);
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
-  camera.position.set(52, 16, 58);
+  camera.position.set(42, 22, 48);
 
   const renderer = new THREE.WebGPURenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -34,7 +35,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.target.set(0, 3, 0);
+  controls.target.set(2, 4, 0);
   controls.maxPolarAngle = Math.PI * 0.48;
   controls.minDistance = 12;
   controls.maxDistance = 280;
@@ -48,14 +49,24 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   const cascadeSystem = new OceanCascadeSystem(parameters);
   const water = new WaterMesh(cascadeSystem.getCombinedSurface());
   const debugTextureView = new DebugTextureView(cascadeSystem);
+  const floatingSphere = new FloatingSphere();
+  const floatingBoat = new FloatingBoat();
   scene.add(water.mesh);
   scene.add(debugTextureView.mesh);
+  scene.add(floatingSphere.mesh);
+  scene.add(floatingBoat.group);
 
   await cascadeSystem.init(renderer);
   water.update(renderer, cascadeSystem.getCombinedSurface());
   await renderer.compileAsync(scene, camera);
 
-  const debugControls = new DebugControls(parameters, cascadeSystem, water, debugTextureView);
+  const debugControls = new DebugControls(
+    parameters,
+    cascadeSystem,
+    water,
+    debugTextureView,
+    { sphere: floatingSphere, boat: floatingBoat },
+  );
   water.update(renderer, cascadeSystem.getCombinedSurface());
   const stats = new StatsPanel();
   root.appendChild(stats.element);
@@ -77,7 +88,10 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     const deltaSeconds = Math.min(clock.getDelta(), 1 / 30);
 
     cascadeSystem.update(renderer, deltaSeconds);
-    water.update(renderer, cascadeSystem.getCombinedSurface());
+    const surface = cascadeSystem.getCombinedSurface();
+    water.update(renderer, surface);
+    floatingSphere.update(deltaSeconds, surface, water);
+    floatingBoat.update(deltaSeconds, surface, water);
     controls.update();
     debugTextureView.updateLayout(camera, window.innerWidth, window.innerHeight);
     stats.update(deltaSeconds);
@@ -90,6 +104,8 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     controls.dispose();
     debugControls.dispose();
     debugTextureView.dispose();
+    floatingSphere.dispose();
+    floatingBoat.dispose();
     water.dispose();
     cascadeSystem.dispose();
     renderer.dispose();

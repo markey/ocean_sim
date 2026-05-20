@@ -80,6 +80,15 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Tiny-wave damping** | Higher values suppress small ripples |
 | **Debug texture** | PiP overlay shows height, displacement, normal, Jacobian, or accumulated foam |
 | **Foam** | Whitecaps build at crests where Jacobian compression exceeds threshold; decay and clear in the Foam folder |
+| **Buoyancy** | Orange sphere and brown boat ride waves; toggle, tune stiffness/damping, reset positions in the Buoyancy folder |
+
+### Buoyancy (Milestone 6)
+
+- [ ] Orange **sphere** bobs on the surface near `(12, 8)` in world XZ
+- [ ] **Boat** hull pitches and rolls with four corner height samples near `(-14, -10)`
+- [ ] Disabling **Sphere** or **Boat** in the Buoyancy folder stops that body’s motion
+- [ ] **Reset sphere** / **Reset boat** return bodies to their spawn poses
+- [ ] Higher **Vertical stiffness** reduces lag on wave crests; higher **Orientation blend** tracks slope faster
 
 ### Performance
 
