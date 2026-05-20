@@ -18,7 +18,7 @@ function createDefaultParameters(): OceanSimulationParameters {
     gravity: 9.81,
     smallWaveDamping: 0.02,
     seed: 1337,
-    heightScale: 1000,
+    heightScale: 1,
     timeScale: 1,
   };
 }

@@ -10,6 +10,8 @@ function uintUniform(value: number): Node {
   return uniform(value, 'uint' as 'float') as unknown as Node;
 }
 
+const CPU_HEIGHT_GAIN = 1000;
+
 export type OceanSimulationParameters = SpectrumParameters & {
   heightScale: number;
   timeScale: number;
@@ -269,7 +271,7 @@ export class OceanSimulation {
         const sourceIndex = (y * resolution + x) * 2;
         const pixelIndex = (y * resolution + x) * 4;
         const checker = (x + y) % 2 === 0 ? 1 : -1;
-        const height = ((this.cpuSpectrum[sourceIndex] ?? 0) * checker) / (resolution * resolution);
+        const height = ((this.cpuSpectrum[sourceIndex] ?? 0) * checker * CPU_HEIGHT_GAIN) / (resolution * resolution);
 
         this.heightPixels[pixelIndex] = height;
         this.heightPixels[pixelIndex + 1] = height;
