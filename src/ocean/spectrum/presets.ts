@@ -3,8 +3,6 @@ import type { OceanPreset, OceanPresetId } from './types';
 /**
  * Named sea-state presets for quick comparison in the debug UI.
  * Presets are tuned for visible combined cascade range, not a strict Beaufort scale.
- * Keep directionalSpread moderate: the current spectrum normalization makes very
- * narrow spreads concentrate a lot of energy into the visible patch.
  */
 export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
   glassyMorning: {
@@ -50,10 +48,10 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     directionalSpread: 3.2,
     smallWaveDamping: 0.034,
     choppiness: 0.26,
-    heightScale: 0.95,
+    heightScale: 0.7,
     timeScale: 0.45,
     enableSwell: true,
-    swellAmplitudeScale: 3.2,
+    swellAmplitudeScale: 1.4,
     enableDetail: false,
   },
   heavySwell: {
@@ -67,10 +65,10 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     directionalSpread: 2.6,
     smallWaveDamping: 0.036,
     choppiness: 0.24,
-    heightScale: 1.02,
+    heightScale: 0.78,
     timeScale: 0.4,
     enableSwell: true,
-    swellAmplitudeScale: 4.4,
+    swellAmplitudeScale: 2,
     enableDetail: false,
   },
   windySea: {
@@ -87,7 +85,8 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     heightScale: 0.95,
     timeScale: 1,
     enableSwell: false,
-    enableDetail: false,
+    enableDetail: true,
+    detailAmplitudeScale: 3.2,
   },
   choppyLagoon: {
     label: 'Choppy lagoon',
@@ -104,7 +103,7 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     timeScale: 1.15,
     enableSwell: false,
     enableDetail: true,
-    detailAmplitudeScale: 1.65,
+    detailAmplitudeScale: 3,
   },
   openOcean: {
     label: 'Open ocean',
@@ -120,9 +119,9 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     heightScale: 0.95,
     timeScale: 0.95,
     enableSwell: true,
-    swellAmplitudeScale: 1.7,
+    swellAmplitudeScale: 0.9,
     enableDetail: true,
-    detailAmplitudeScale: 1.25,
+    detailAmplitudeScale: 2.4,
   },
   whitecaps: {
     label: 'Whitecaps',
@@ -139,7 +138,7 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     timeScale: 1.15,
     enableSwell: false,
     enableDetail: true,
-    detailAmplitudeScale: 1.95,
+    detailAmplitudeScale: 4,
   },
   gale: {
     label: 'Gale',
@@ -152,10 +151,11 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     directionalSpread: 4.9,
     smallWaveDamping: 0.014,
     choppiness: 0.66,
-    heightScale: 1.08,
+    heightScale: 1,
     timeScale: 1.08,
     enableSwell: false,
-    enableDetail: false,
+    enableDetail: true,
+    detailAmplitudeScale: 3.5,
   },
   storm: {
     label: 'Storm',
@@ -168,11 +168,11 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     directionalSpread: 5,
     smallWaveDamping: 0.013,
     choppiness: 0.7,
-    heightScale: 1.08,
+    heightScale: 1,
     timeScale: 1.05,
     enableSwell: false,
     enableDetail: true,
-    detailAmplitudeScale: 1.5,
+    detailAmplitudeScale: 4.5,
   },
 };
 

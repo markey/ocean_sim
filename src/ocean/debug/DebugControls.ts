@@ -128,8 +128,8 @@ export class DebugControls {
       .decimals(1)
       .onFinishChange(syncGlobalSpectrum);
     spectrumFolder
-      .add(this.state, 'directionalSpread', 1, 16, 0.25)
-      .name('Spread s')
+      .add(this.state, 'directionalSpread', 0.5, 8, 0.25)
+      .name('Directionality')
       .decimals(2)
       .onFinishChange(syncGlobalSpectrum);
 

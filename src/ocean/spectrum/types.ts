@@ -15,7 +15,7 @@ export type SpectrumParameters = {
   fetch: number;
   /** JONSWAP peak enhancement factor gamma (typically 1–5). */
   peakEnhancement: number;
-  /** Directional spreading power s in cos^(2s)(theta/2). */
+  /** Directionality of wave energy around the wind axis; higher = more wind-aligned. */
   directionalSpread: number;
 };
 
