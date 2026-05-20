@@ -85,7 +85,7 @@ export class DebugTextureView {
           surfaceUniform.equal(2).select(midJacobian, surfaceUniform.equal(3).select(detailJacobian, jacobianTex)),
         );
 
-      const heightView = vec3(saturate(heightSample.mul(0.002).add(0.5)));
+      const heightView = vec3(saturate(heightSample.mul(0.008).add(0.5)));
       const displacementView = displacementSample.xyz.mul(0.35).add(0.5);
       const normalView = normalSample.mul(0.5).add(0.5);
       const compression = float(1).sub(jacobianSample.x);
@@ -146,14 +146,24 @@ export class DebugTextureView {
 
     const distance = 1;
     const viewDirection = new THREE.Vector3();
+    const cameraRight = new THREE.Vector3();
+    const cameraUp = new THREE.Vector3();
     camera.getWorldDirection(viewDirection);
+    cameraRight.crossVectors(viewDirection, camera.up).normalize();
+    cameraUp.crossVectors(cameraRight, viewDirection).normalize();
 
-    this.mesh.position.copy(camera.position).addScaledVector(viewDirection, distance);
-    this.mesh.quaternion.copy(camera.quaternion);
-
+    // Small bottom-right PiP so debug textures do not cover the ocean view.
+    const panelHeight = 0.22;
     const aspect = width / Math.max(height, 1);
-    const panelHeight = 0.55;
     const panelWidth = panelHeight * aspect;
+    const margin = 0.14;
+
+    this.mesh.position
+      .copy(camera.position)
+      .addScaledVector(viewDirection, distance)
+      .addScaledVector(cameraRight, panelWidth * 0.5 - margin)
+      .addScaledVector(cameraUp, margin - panelHeight * 0.5);
+    this.mesh.quaternion.copy(camera.quaternion);
     this.mesh.scale.set(panelWidth, panelHeight, 1);
   }
 

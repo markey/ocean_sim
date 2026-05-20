@@ -24,7 +24,17 @@ export type SpectrumData = {
   parameters: SpectrumParameters;
 };
 
-export type OceanPresetId = 'calmSea' | 'windySea' | 'storm' | 'longSwell';
+export type OceanPresetId =
+  | 'glassyMorning'
+  | 'calmSea'
+  | 'longSwell'
+  | 'heavySwell'
+  | 'windySea'
+  | 'choppyLagoon'
+  | 'openOcean'
+  | 'whitecaps'
+  | 'gale'
+  | 'storm';
 
 export type OceanPreset = {
   label: string;
@@ -40,4 +50,12 @@ export type OceanPreset = {
   choppiness: number;
   heightScale: number;
   timeScale: number;
+  /** Optional long-wave band; off keeps mid-band sea states readable. */
+  enableSwell?: boolean;
+  /** Boost swell h0 relative to the default 8% of preset amplitude. */
+  swellAmplitudeScale?: number;
+  /** Optional fine-ripple band for sparkle and whitecap texture. */
+  enableDetail?: boolean;
+  /** Boost ripple h0 relative to the default 5% of preset amplitude. */
+  detailAmplitudeScale?: number;
 };

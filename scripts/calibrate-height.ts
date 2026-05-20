@@ -1,6 +1,6 @@
 /**
  * One-shot calibration: measures IFFT peak height for default windy JONSWAP
- * and prints a sane CPU_HEIGHT_GAIN for ~3.5 m peaks at heightScale = 1.
+ * and prints a sane CPU_HEIGHT_GAIN for ~8 m peaks at heightScale = 1.
  */
 import { createInitialSpectrum } from '../src/ocean/spectrum/index.ts';
 import {

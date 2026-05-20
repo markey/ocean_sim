@@ -1,6 +1,6 @@
 import GUI from 'lil-gui';
 import { OCEAN_PRESETS, OCEAN_PRESET_IDS } from '../spectrum/presets';
-import type { OceanPresetId } from '../spectrum/types';
+import type { OceanPreset, OceanPresetId } from '../spectrum/types';
 import {
   CASCADE_IDS,
   cascadeAmplitudesFromPreset,
@@ -26,6 +26,7 @@ function refreshGuiDisplays(gui: GUI): void {
 export class DebugControls {
   readonly gui: GUI;
   private readonly state: DebugGuiState;
+  private readonly applyPreset: (preset: OceanPreset) => void;
 
   constructor(
     parameters: OceanCascadeSystemParameters,
@@ -59,6 +60,37 @@ export class DebugControls {
       });
     };
 
+    this.applyPreset = (preset: OceanPreset) => {
+      this.state.spectrumModel = preset.spectrumModel;
+      this.state.windSpeed = preset.windSpeed;
+      this.state.windDirectionDegrees = preset.windDirection;
+      this.state.fetch = preset.fetch;
+      this.state.peakEnhancement = preset.peakEnhancement;
+      this.state.directionalSpread = preset.directionalSpread;
+      this.state.timeScale = preset.timeScale;
+      const amplitudes = cascadeAmplitudesFromPreset(preset.amplitude, {
+        swellScale: preset.swellAmplitudeScale,
+        detailScale: preset.detailAmplitudeScale,
+      });
+      this.state.cascades.swell.enabled = preset.enableSwell ?? false;
+      this.state.cascades.swell.amplitude = amplitudes.swell;
+      this.state.cascades.swell.choppiness = preset.choppiness * 0.6;
+      this.state.cascades.swell.heightScale = preset.heightScale;
+      this.state.cascades.swell.smallWaveDamping = preset.smallWaveDamping * 1.2;
+      this.state.cascades.mid.amplitude = amplitudes.mid;
+      this.state.cascades.mid.choppiness = preset.choppiness;
+      this.state.cascades.mid.heightScale = preset.heightScale;
+      this.state.cascades.mid.smallWaveDamping = preset.smallWaveDamping;
+      this.state.cascades.detail.enabled = preset.enableDetail ?? false;
+      this.state.cascades.detail.amplitude = amplitudes.detail;
+      this.state.cascades.detail.choppiness = Math.min(1, preset.choppiness * 0.9);
+      this.state.cascades.detail.heightScale = preset.heightScale;
+      this.state.cascades.detail.smallWaveDamping = preset.smallWaveDamping * 1.5;
+      refreshGuiDisplays(this.gui);
+      water.setHeightScale(preset.heightScale);
+      cascadeSystem.applyPreset(preset, (preset.windDirection * Math.PI) / 180);
+    };
+
     const presetFolder = this.gui.addFolder('Presets');
     const presetOptions = Object.fromEntries(
       OCEAN_PRESET_IDS.map((id) => [OCEAN_PRESETS[id].label, id]),
@@ -67,30 +99,7 @@ export class DebugControls {
       .add(this.state, 'preset', presetOptions)
       .name('Sea state')
       .onChange((presetId: OceanPresetId) => {
-        const preset = OCEAN_PRESETS[presetId];
-        this.state.spectrumModel = preset.spectrumModel;
-        this.state.windSpeed = preset.windSpeed;
-        this.state.windDirectionDegrees = preset.windDirection;
-        this.state.fetch = preset.fetch;
-        this.state.peakEnhancement = preset.peakEnhancement;
-        this.state.directionalSpread = preset.directionalSpread;
-        this.state.timeScale = preset.timeScale;
-        const amplitudes = cascadeAmplitudesFromPreset(preset.amplitude);
-        this.state.cascades.swell.amplitude = amplitudes.swell;
-        this.state.cascades.mid.amplitude = amplitudes.mid;
-        this.state.cascades.detail.amplitude = amplitudes.detail;
-        this.state.cascades.mid.choppiness = preset.choppiness;
-        this.state.cascades.mid.heightScale = preset.heightScale;
-        this.state.cascades.mid.smallWaveDamping = preset.smallWaveDamping;
-        this.state.cascades.swell.choppiness = preset.choppiness * 0.6;
-        this.state.cascades.swell.heightScale = preset.heightScale;
-        this.state.cascades.swell.smallWaveDamping = preset.smallWaveDamping * 1.2;
-        this.state.cascades.detail.choppiness = Math.min(1, preset.choppiness * 0.9);
-        this.state.cascades.detail.heightScale = preset.heightScale;
-        this.state.cascades.detail.smallWaveDamping = preset.smallWaveDamping * 1.5;
-        refreshGuiDisplays(this.gui);
-        water.setHeightScale(preset.heightScale);
-        cascadeSystem.applyPreset(preset, (preset.windDirection * Math.PI) / 180);
+        this.applyPreset(OCEAN_PRESETS[presetId]);
       });
 
     const spectrumFolder = this.gui.addFolder('Global spectrum');
@@ -215,7 +224,10 @@ export class DebugControls {
         debugView.setMode(mode);
       });
 
-    water.setHeightScale(this.state.cascades.mid.heightScale);
+    debugView.setMode(this.state.debugView);
+    debugView.setCascadeTarget(this.state.debugCascade);
+
+    this.applyPreset(OCEAN_PRESETS[this.state.preset]);
   }
 
   dispose(): void {

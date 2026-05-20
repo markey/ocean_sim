@@ -6,15 +6,12 @@ import {
   dot,
   float,
   mix,
+  normalWorld,
   normalize,
   oneMinus,
-  positionLocal,
   positionWorld,
   pow,
   saturate,
-  texture,
-  uv,
-  vec3,
 } from 'three/tsl';
 import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
 
@@ -23,10 +20,10 @@ export class WaterMesh {
   readonly material: THREE.MeshStandardNodeMaterial;
 
   constructor(surface: OceanSurfaceProvider) {
-    const resolution = surface.parameters.resolution;
+    const { resolution, patchSize } = surface.parameters;
     const geometry = new THREE.PlaneGeometry(
-      surface.parameters.patchSize,
-      surface.parameters.patchSize,
+      patchSize,
+      patchSize,
       resolution - 1,
       resolution - 1,
     );
@@ -37,22 +34,8 @@ export class WaterMesh {
       metalness: 0.02,
     });
 
-    this.material.positionNode = Fn(() => {
-      const displacement = texture(surface.displacementDataTexture, uv());
-      const horizontalX = displacement.x;
-      const height = displacement.y;
-      const horizontalZ = displacement.z;
-      // Plane lies in local XY; after mesh rotation -PI/2 around X, local Z becomes world Y.
-      return positionLocal.add(vec3(horizontalX, horizontalZ.negate(), height));
-    })();
-
-    this.material.normalNode = Fn(() => {
-      const worldNormal = texture(surface.normalDataTexture, uv()).xyz.mul(2).sub(1).normalize();
-      return vec3(worldNormal.x, worldNormal.z.negate(), worldNormal.y).normalize();
-    })();
-
     this.material.colorNode = Fn(() => {
-      const worldNormal = texture(surface.normalDataTexture, uv()).xyz.mul(2).sub(1).normalize();
+      const worldNormal = normalWorld;
       const deepWater = color(0x0a5f73);
       const shallowWater = color(0x1f9db8);
       const skyReflection = color(0xb8dff0);
@@ -68,8 +51,26 @@ export class WaterMesh {
     this.mesh.rotation.x = -Math.PI / 2;
   }
 
-  async update(_renderer: THREE.WebGPURenderer): Promise<void> {
-    // The cascade system updates the DataTextures consumed by this material each frame.
+  update(renderer: THREE.WebGPURenderer, surface: OceanSurfaceProvider): void {
+    const displacement = surface.displacementDataTexture.image.data as Float32Array;
+    const positions = this.mesh.geometry.attributes.position as THREE.BufferAttribute;
+    const resolution = surface.parameters.resolution;
+
+    // PlaneGeometry is XY; local Z becomes world Y after the mesh X rotation.
+    for (let y = 0; y < resolution; y += 1) {
+      for (let x = 0; x < resolution; x += 1) {
+        // PlaneGeometry row order matches simulation, but V is flipped vs FFT layout.
+        const simIndex = y * resolution + x;
+        const vertexIndex = (resolution - 1 - y) * resolution + x;
+        const height = displacement[simIndex * 4 + 1] ?? 0;
+        positions.setZ(vertexIndex, height);
+      }
+    }
+
+    positions.needsUpdate = true;
+    this.mesh.geometry.computeVertexNormals();
+    void renderer;
+    void surface;
   }
 
   /** Height scale is applied per cascade; kept for debug UI compatibility. */

@@ -10,10 +10,10 @@ const MEASURED_IFFT_PEAK = 23_236.8535;
 export const REFERENCE_SPECTRUM_AMPLITUDE = 0.0012;
 
 /**
- * Target peak crest height in meters at heightScale = 1.0.
- * Calibrated offline (scripts/calibrate-height.ts).
+ * Target peak crest height in meters at heightScale = 1.0 on the 220 m mid band.
+ * Calibrated offline (scripts/calibrate-height.ts) for amplitude 0.0012 / windy JONSWAP.
  */
-export const TARGET_PEAK_HEIGHT_METERS = 3.5;
+export const TARGET_PEAK_HEIGHT_METERS = 6;
 
 /**
  * FFT → world height (meters) before the height-scale slider.

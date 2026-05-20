@@ -49,11 +49,23 @@ export const CASCADE_AMPLITUDE_RATIOS: Record<CascadeId, number> = {
   detail: 0.05,
 };
 
-export function cascadeAmplitudesFromPreset(presetAmplitude: number): Record<CascadeId, number> {
+export type CascadeAmplitudeOptions = {
+  /** Multiplier on the default swell share (use >1 when swell cascade is enabled). */
+  swellScale?: number;
+  detailScale?: number;
+};
+
+export function cascadeAmplitudesFromPreset(
+  presetAmplitude: number,
+  options: CascadeAmplitudeOptions = {},
+): Record<CascadeId, number> {
+  const swellRatio = CASCADE_AMPLITUDE_RATIOS.swell * (options.swellScale ?? 1);
+  const detailRatio = CASCADE_AMPLITUDE_RATIOS.detail * (options.detailScale ?? 1);
+
   return {
-    swell: presetAmplitude * CASCADE_AMPLITUDE_RATIOS.swell,
+    swell: presetAmplitude * swellRatio,
     mid: presetAmplitude * CASCADE_AMPLITUDE_RATIOS.mid,
-    detail: presetAmplitude * CASCADE_AMPLITUDE_RATIOS.detail,
+    detail: presetAmplitude * detailRatio,
   };
 }
 
@@ -81,9 +93,9 @@ export const DEFAULT_CASCADE_CONFIGS: Record<CascadeId, CascadeConfig> = {
     windInfluence: 1,
     phaseOffsetX: 0,
     phaseOffsetZ: 0,
-    choppiness: 0.4,
+    choppiness: 0.48,
     heightScale: 1,
-    smallWaveDamping: 0.02,
+    smallWaveDamping: 0.019,
   },
   detail: {
     label: 'Ripples',
@@ -107,12 +119,12 @@ export function createDefaultCascadeSystemParameters(): OceanCascadeSystemParame
     resolution: DEFAULT_CASCADE_CONFIGS.mid.resolution,
     gravity: 9.81,
     timeScale: 1,
-    windSpeed: 16,
+    windSpeed: 15,
     windDirection: (40 * Math.PI) / 180,
     spectrumModel: 'jonswap',
-    fetch: 250_000,
-    peakEnhancement: 3.3,
-    directionalSpread: 6,
+    fetch: 280_000,
+    peakEnhancement: 3.2,
+    directionalSpread: 5.5,
     seed: 1337,
     cascades: {
       swell: { ...DEFAULT_CASCADE_CONFIGS.swell },

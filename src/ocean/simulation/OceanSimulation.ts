@@ -12,7 +12,7 @@ function uintUniform(value: number): Node {
 }
 
 // Scales horizontal chop separately so the choppiness slider does not fold the mesh.
-const CHOPPINESS_DISPLACEMENT_GAIN = 0.2;
+const CHOPPINESS_DISPLACEMENT_GAIN = 0.12;
 const MIN_WAVE_NUMBER = 1e-6;
 
 export type OceanSimulationParameters = SpectrumParameters & {

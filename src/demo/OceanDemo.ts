@@ -52,9 +52,11 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   scene.add(debugTextureView.mesh);
 
   await cascadeSystem.init(renderer);
+  water.update(renderer, cascadeSystem.getCombinedSurface());
   await renderer.compileAsync(scene, camera);
 
   const debugControls = new DebugControls(parameters, cascadeSystem, water, debugTextureView);
+  water.update(renderer, cascadeSystem.getCombinedSurface());
   const stats = new StatsPanel();
   root.appendChild(stats.element);
 
@@ -75,6 +77,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     const deltaSeconds = Math.min(clock.getDelta(), 1 / 30);
 
     cascadeSystem.update(renderer, deltaSeconds);
+    water.update(renderer, cascadeSystem.getCombinedSurface());
     controls.update();
     debugTextureView.updateLayout(camera, window.innerWidth, window.innerHeight);
     stats.update(deltaSeconds);

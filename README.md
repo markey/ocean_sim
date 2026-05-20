@@ -41,7 +41,7 @@ Compute kernels for spectrum upload and evolution remain wired per cascade for a
 
 Implemented:
 
-- Three cascades: swell (512 m tile), mid waves (220 m), ripples (41 m). Swell and ripples are off by default so presets match the mid-band sea; enable them for layered motion.
+- Three cascades: swell (512 m tile), mid waves (220 m), ripples (41 m). Presets pick which bands are active (e.g. long swell enables swell; whitecaps enables ripples).
 - Per-cascade: length scale, amplitude, wind influence, choppiness, height scale, tiny-wave damping, enable/disable.
 - World-space merge with tiling; combined normals and Jacobian.
 - Debug UI: cascade selector plus height / displacement / normal / Jacobian views.

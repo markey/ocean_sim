@@ -84,7 +84,7 @@ Milestone 3: Better spectrum controls
 Add:
 - JONSWAP spectrum or a clean equivalent physically motivated spectrum.
 - Directional spreading.
-- Presets such as calm sea, windy sea, storm, long swell.
+- Presets such as glassy morning, calm sea, long/heavy swell, windy sea, choppy lagoon, open ocean, whitecaps, gale, and storm (with optional swell/ripple cascades per preset).
 - A debug view to inspect height, displacement, normal, and foam/Jacobian textures.
 
 Milestone 4: Cascades

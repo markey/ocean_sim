@@ -136,6 +136,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   /** World-grid displacement for bands that run at lower resolution than mid. */
   private readonly upsampledDisplacement: Record<'swell' | 'detail', Float32Array>;
   private frameIndex = 0;
+  private renderer: THREE.WebGPURenderer | null = null;
 
   constructor(systemParameters: OceanCascadeSystemParameters) {
     this.systemParameters = { ...systemParameters, cascades: { ...systemParameters.cascades } };
@@ -189,6 +190,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   }
 
   async init(renderer: THREE.WebGPURenderer): Promise<void> {
+    this.renderer = renderer;
     await Promise.all(CASCADE_IDS.map((id) => this.cascades[id].init(renderer)));
 
     for (const id of CASCADE_IDS) {
@@ -197,6 +199,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
 
     this.refreshUpsampledBands(['swell', 'detail']);
     this.mergeCascadeFields();
+    this.syncGpuTextures(renderer);
   }
 
   setParameters(
@@ -221,10 +224,22 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     }
 
     this.refreshUpsampledBands(['swell', 'detail']);
+    this.mergeCascadeFields();
+  }
+
+  /** Upload combined displacement/normal textures (WebGPU needs explicit initTexture). */
+  syncGpuTextures(renderer: THREE.WebGPURenderer): void {
+    this.displacementDataTexture.needsUpdate = true;
+    this.normalDataTexture.needsUpdate = true;
+    renderer.initTexture(this.displacementDataTexture);
+    renderer.initTexture(this.normalDataTexture);
   }
 
   applyPreset(preset: OceanPreset, windDirectionRadians: number): void {
-    const amplitudes = cascadeAmplitudesFromPreset(preset.amplitude);
+    const amplitudes = cascadeAmplitudesFromPreset(preset.amplitude, {
+      swellScale: preset.swellAmplitudeScale,
+      detailScale: preset.detailAmplitudeScale,
+    });
 
     this.setParameters({
       spectrumModel: preset.spectrumModel,
@@ -237,6 +252,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
       seed: Date.now(),
       cascades: {
         swell: {
+          enabled: preset.enableSwell ?? false,
           amplitude: amplitudes.swell,
           choppiness: preset.choppiness * 0.6,
           heightScale: preset.heightScale,
@@ -249,6 +265,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
           smallWaveDamping: preset.smallWaveDamping,
         },
         detail: {
+          enabled: preset.enableDetail ?? false,
           amplitude: amplitudes.detail,
           choppiness: Math.min(1, preset.choppiness * 0.9),
           heightScale: preset.heightScale,
@@ -256,6 +273,10 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
         },
       },
     });
+
+    if (this.renderer) {
+      this.syncGpuTextures(this.renderer);
+    }
   }
 
   setCascadeParameters(id: CascadeId, next: Partial<CascadeConfig>): void {
