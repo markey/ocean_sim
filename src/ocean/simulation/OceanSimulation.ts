@@ -116,10 +116,15 @@ function createFloatStorageTexture(resolution: number): THREE.StorageTexture {
 
 export class OceanSimulation {
   readonly heightTexture: THREE.StorageTexture;
+  readonly heightDataTexture: THREE.DataTexture;
   readonly heightBuffer: THREE.StorageBufferAttribute;
   readonly spectrumTexture: THREE.StorageTexture;
   readonly parameters: OceanSimulationParameters;
 
+  private spectrumData: Float32Array;
+  private readonly cpuSpectrum: Float32Array;
+  private readonly fftScratch: Float32Array;
+  private readonly heightPixels: Float32Array;
   private readonly h0Texture: THREE.StorageTexture;
   private readonly evolvedSpectrumTexture: THREE.StorageTexture;
   readonly spatialSpectrumTexture: THREE.StorageTexture;
@@ -147,7 +152,24 @@ export class OceanSimulation {
     this.evolvedSpectrumTexture = this.spectrumTexture;
     this.spatialSpectrumTexture = createFloatStorageTexture(resolution);
     this.heightTexture = createFloatStorageTexture(resolution);
+    this.heightPixels = new Float32Array(vertexCount * 4);
+    this.heightDataTexture = new THREE.DataTexture(
+      this.heightPixels,
+      resolution,
+      resolution,
+      THREE.RGBAFormat,
+      THREE.FloatType,
+    );
+    this.heightDataTexture.minFilter = THREE.NearestFilter;
+    this.heightDataTexture.magFilter = THREE.NearestFilter;
+    this.heightDataTexture.wrapS = THREE.RepeatWrapping;
+    this.heightDataTexture.wrapT = THREE.RepeatWrapping;
+    this.heightDataTexture.generateMipmaps = false;
+    this.heightDataTexture.needsUpdate = true;
     this.heightBuffer = new THREE.StorageBufferAttribute(vertexCount, 4);
+    this.spectrumData = new Float32Array(vertexCount * 4);
+    this.cpuSpectrum = new Float32Array(vertexCount * 2);
+    this.fftScratch = new Float32Array(resolution * 2);
     this.fftPing = createFloatStorageTexture(resolution);
     this.fftPong = createFloatStorageTexture(resolution);
     this.fft = new GpuFFT(resolution, this.fftPing, this.fftPong);
@@ -180,12 +202,15 @@ export class OceanSimulation {
   }
 
   async update(renderer: THREE.WebGPURenderer, deltaSeconds: number): Promise<void> {
+    void renderer;
+    void this.fft;
+    void this.evolveNode;
+    void this.heightNode;
+
     this.elapsed += deltaSeconds * this.parameters.timeScale;
     this.timeUniform.value = this.elapsed;
 
-    await renderer.computeAsync(this.evolveNode);
-    await this.fft.inverse2D(renderer, this.evolvedSpectrumTexture, this.spatialSpectrumTexture);
-    await renderer.computeAsync(this.heightNode);
+    this.updateCpuHeightField();
   }
 
   dispose(): void {
@@ -193,14 +218,155 @@ export class OceanSimulation {
     this.spectrumTexture.dispose();
     this.spatialSpectrumTexture.dispose();
     this.heightTexture.dispose();
+    this.heightDataTexture.dispose();
     this.fftPing.dispose();
     this.fftPong.dispose();
   }
 
   private uploadSpectrumData(parameters: SpectrumParameters): void {
     const spectrum = createInitialSpectrum(parameters);
+    this.spectrumData = spectrum.data;
     (this.h0Buffer.value.array as Float32Array).set(spectrum.data);
     this.h0Buffer.value.needsUpdate = true;
+  }
+
+  private updateCpuHeightField(): void {
+    const { resolution, patchSize, gravity } = this.parameters;
+    const twoPiOverLength = (2 * Math.PI) / patchSize;
+
+    for (let y = 0; y < resolution; y += 1) {
+      const centeredY = y - resolution / 2;
+
+      for (let x = 0; x < resolution; x += 1) {
+        const centeredX = x - resolution / 2;
+        const spectrumIndex = (y * resolution + x) * 4;
+        const outputIndex = (y * resolution + x) * 2;
+        const kx = centeredX * twoPiOverLength;
+        const kz = centeredY * twoPiOverLength;
+        const omega = Math.sqrt(gravity * Math.hypot(kx, kz));
+        const phase = omega * this.elapsed;
+        const cosPhase = Math.cos(phase);
+        const sinPhase = Math.sin(phase);
+        const h0r = this.spectrumData[spectrumIndex] ?? 0;
+        const h0i = this.spectrumData[spectrumIndex + 1] ?? 0;
+        const h0MinusR = this.spectrumData[spectrumIndex + 2] ?? 0;
+        const h0MinusI = this.spectrumData[spectrumIndex + 3] ?? 0;
+
+        const positiveR = h0r * cosPhase - h0i * sinPhase;
+        const positiveI = h0r * sinPhase + h0i * cosPhase;
+        const negativeR = h0MinusR * cosPhase + h0MinusI * sinPhase;
+        const negativeI = -h0MinusR * sinPhase + h0MinusI * cosPhase;
+
+        this.cpuSpectrum[outputIndex] = positiveR + negativeR;
+        this.cpuSpectrum[outputIndex + 1] = positiveI + negativeI;
+      }
+    }
+
+    this.inverseFft2D(this.cpuSpectrum);
+
+    for (let y = 0; y < resolution; y += 1) {
+      for (let x = 0; x < resolution; x += 1) {
+        const sourceIndex = (y * resolution + x) * 2;
+        const pixelIndex = (y * resolution + x) * 4;
+        const checker = (x + y) % 2 === 0 ? 1 : -1;
+        const height = ((this.cpuSpectrum[sourceIndex] ?? 0) * checker) / (resolution * resolution);
+
+        this.heightPixels[pixelIndex] = height;
+        this.heightPixels[pixelIndex + 1] = height;
+        this.heightPixels[pixelIndex + 2] = height;
+        this.heightPixels[pixelIndex + 3] = 1;
+      }
+    }
+
+    this.heightDataTexture.needsUpdate = true;
+  }
+
+  private inverseFft2D(data: Float32Array): void {
+    const { resolution } = this.parameters;
+
+    for (let y = 0; y < resolution; y += 1) {
+      const rowOffset = y * resolution * 2;
+
+      for (let x = 0; x < resolution; x += 1) {
+        this.fftScratch[x * 2] = data[rowOffset + x * 2] ?? 0;
+        this.fftScratch[x * 2 + 1] = data[rowOffset + x * 2 + 1] ?? 0;
+      }
+
+      this.inverseFft1D(this.fftScratch);
+
+      for (let x = 0; x < resolution; x += 1) {
+        data[rowOffset + x * 2] = this.fftScratch[x * 2] ?? 0;
+        data[rowOffset + x * 2 + 1] = this.fftScratch[x * 2 + 1] ?? 0;
+      }
+    }
+
+    for (let x = 0; x < resolution; x += 1) {
+      for (let y = 0; y < resolution; y += 1) {
+        const sourceIndex = (y * resolution + x) * 2;
+        this.fftScratch[y * 2] = data[sourceIndex] ?? 0;
+        this.fftScratch[y * 2 + 1] = data[sourceIndex + 1] ?? 0;
+      }
+
+      this.inverseFft1D(this.fftScratch);
+
+      for (let y = 0; y < resolution; y += 1) {
+        const targetIndex = (y * resolution + x) * 2;
+        data[targetIndex] = this.fftScratch[y * 2] ?? 0;
+        data[targetIndex + 1] = this.fftScratch[y * 2 + 1] ?? 0;
+      }
+    }
+  }
+
+  private inverseFft1D(data: Float32Array): void {
+    const { resolution } = this.parameters;
+
+    for (let i = 1, j = 0; i < resolution; i += 1) {
+      let bit = resolution >> 1;
+
+      for (; (j & bit) !== 0; bit >>= 1) {
+        j ^= bit;
+      }
+
+      j ^= bit;
+
+      if (i < j) {
+        const iR = i * 2;
+        const jR = j * 2;
+        const real = data[iR] ?? 0;
+        const imag = data[iR + 1] ?? 0;
+
+        data[iR] = data[jR] ?? 0;
+        data[iR + 1] = data[jR + 1] ?? 0;
+        data[jR] = real;
+        data[jR + 1] = imag;
+      }
+    }
+
+    for (let length = 2; length <= resolution; length <<= 1) {
+      const halfLength = length >> 1;
+      const angleStep = (2 * Math.PI) / length;
+
+      for (let start = 0; start < resolution; start += length) {
+        for (let offset = 0; offset < halfLength; offset += 1) {
+          const evenIndex = (start + offset) * 2;
+          const oddIndex = (start + offset + halfLength) * 2;
+          const angle = angleStep * offset;
+          const wr = Math.cos(angle);
+          const wi = Math.sin(angle);
+          const oddR = data[oddIndex] ?? 0;
+          const oddI = data[oddIndex + 1] ?? 0;
+          const rotatedR = wr * oddR - wi * oddI;
+          const rotatedI = wr * oddI + wi * oddR;
+          const evenR = data[evenIndex] ?? 0;
+          const evenI = data[evenIndex + 1] ?? 0;
+
+          data[evenIndex] = evenR + rotatedR;
+          data[evenIndex + 1] = evenI + rotatedI;
+          data[oddIndex] = evenR - rotatedR;
+          data[oddIndex + 1] = evenI - rotatedI;
+        }
+      }
+    }
   }
 
   private createUploadH0Node(): ComputeNode {
