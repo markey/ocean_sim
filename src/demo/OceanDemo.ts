@@ -18,7 +18,7 @@ function createDefaultParameters(): OceanSimulationParameters {
     gravity: 9.81,
     smallWaveDamping: 0.02,
     seed: 1337,
-    heightScale: 0.2,
+    heightScale: 25,
     timeScale: 1,
   };
 }
@@ -67,6 +67,9 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   });
   const water = new WaterMesh(simulation);
   scene.add(water.mesh);
+
+  await simulation.init(renderer);
+  await renderer.compileAsync(scene, camera);
 
   const debugControls = new DebugControls(parameters, simulation, water);
   const stats = new StatsPanel();

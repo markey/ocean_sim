@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu';
-import { compute, globalId, storageTexture, texture, uniform, wgslFn } from 'three/tsl';
+import { compute, globalId, storageTexture, uniform, wgslFn } from 'three/tsl';
 import type Node from 'three/src/nodes/core/Node.js';
 import type ComputeNode from 'three/src/nodes/gpgpu/ComputeNode.js';
 
@@ -25,7 +25,7 @@ function uintUniform(value: number): Node {
 
 const bitReverseKernel = wgslFn<FftKernelParams>(`
 fn bitReversePass(
-  source: texture_2d<f32>,
+  source: texture_storage_2d<rgba32float, read>,
   target: texture_storage_2d<rgba32float, write>,
   id: vec3<u32>,
   resolution: u32,
@@ -52,14 +52,14 @@ fn bitReversePass(
     vec2<i32>(i32(reversed), i32(y)),
     horizontal == 1u
   );
-  let v = textureLoad(source, readCoord, 0);
+  let v = textureLoad(source, readCoord);
   textureStore(target, vec2<i32>(i32(x), i32(y)), v);
 }
 `);
 
 const fftStageKernel = wgslFn<FftKernelParams>(`
 fn fftStagePass(
-  source: texture_2d<f32>,
+  source: texture_storage_2d<rgba32float, read>,
   target: texture_storage_2d<rgba32float, write>,
   id: vec3<u32>,
   resolution: u32,
@@ -93,8 +93,8 @@ fn fftStagePass(
     horizontal == 1u
   );
 
-  let a = textureLoad(source, evenCoord, 0).xy;
-  let b = textureLoad(source, oddCoord, 0).xy;
+  let a = textureLoad(source, evenCoord).xy;
+  let b = textureLoad(source, oddCoord).xy;
 
   // Positive sign gives the inverse transform convention used by Tessendorf.
   let angle = 6.28318530718 * f32(pairOffset) / f32(span);
@@ -119,7 +119,7 @@ function makePass(
 ): ComputeNode {
   return compute2D(
     kernel({
-      source: texture(source) as unknown as Node,
+      source: storageTexture(source).toReadOnly() as unknown as Node,
       target: storageTexture(target).toWriteOnly() as unknown as Node,
       id: globalId,
       resolution: uintUniform(resolution),
