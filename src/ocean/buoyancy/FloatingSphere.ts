@@ -78,9 +78,10 @@ export class FloatingSphere {
       surfaceSampleScratch,
     );
     const waterHeight = water.sampleWorldHeight(this.position.x, this.position.z);
+    const surfaceY = waterHeight + this.radius;
     const targetY = followTargetHeight(
       this.smoothedTargetY,
-      waterHeight + this.radius,
+      surfaceY,
       this.buoyancy.heightFollowRate,
       deltaSeconds,
     );
@@ -89,6 +90,7 @@ export class FloatingSphere {
       this.position.y,
       this.velocity.y,
       targetY,
+      surfaceY,
       this.mass,
       this.buoyancy,
       deltaSeconds,

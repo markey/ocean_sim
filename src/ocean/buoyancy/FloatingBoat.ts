@@ -138,9 +138,10 @@ export class FloatingBoat {
     }
 
     averageWaterHeight /= this.samplePoints.length;
+    const surfaceY = averageWaterHeight + this.draft;
     const targetY = followTargetHeight(
       this.smoothedTargetY,
-      averageWaterHeight + this.draft,
+      surfaceY,
       this.buoyancy.heightFollowRate,
       deltaSeconds,
     );
@@ -149,6 +150,7 @@ export class FloatingBoat {
       this.position.y,
       this.velocity.y,
       targetY,
+      surfaceY,
       this.mass,
       this.buoyancy,
       deltaSeconds,
