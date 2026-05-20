@@ -26,7 +26,7 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     peakEnhancement: 3.3,
     directionalSpread: 6,
     smallWaveDamping: 0.02,
-    choppiness: 1.2,
+    choppiness: 0.15,
     heightScale: 1,
     timeScale: 1,
   },
@@ -40,8 +40,8 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     peakEnhancement: 4.2,
     directionalSpread: 4,
     smallWaveDamping: 0.015,
-    choppiness: 1.85,
-    heightScale: 1.35,
+    choppiness: 0.85,
+    heightScale: 1,
     timeScale: 1.15,
   },
   longSwell: {
@@ -55,7 +55,7 @@ export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
     directionalSpread: 3.5,
     smallWaveDamping: 0.028,
     choppiness: 0.35,
-    heightScale: 1.1,
+    heightScale: 0.9,
     timeScale: 0.55,
   },
 };

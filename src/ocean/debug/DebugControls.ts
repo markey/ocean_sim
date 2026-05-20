@@ -29,7 +29,11 @@ export class DebugControls {
     this.gui = new GUI({ title: 'Spectral Ocean' });
     this.state = {
       ...parameters,
-      windDirectionDegrees: (parameters.windDirection * 180) / Math.PI,
+      // Demo params store wind direction in degrees; simulation stores radians.
+      windDirectionDegrees:
+        parameters.windDirection <= Math.PI * 2
+          ? (parameters.windDirection * 180) / Math.PI
+          : parameters.windDirection,
       preset: 'windySea',
       debugView: 'off',
     };
@@ -110,11 +114,11 @@ export class DebugControls {
     this.gui.add(this.state, 'timeScale', 0, 4, 0.01).name('Time scale').decimals(2).onChange((value: number) => {
       simulation.setParameters({ timeScale: value });
     });
-    this.gui.add(this.state, 'heightScale', 0, 4, 0.05).name('Height scale').decimals(2).onChange((value: number) => {
+    this.gui.add(this.state, 'heightScale', 0, 1, 0.05).name('Height scale').decimals(2).onChange((value: number) => {
       water.setHeightScale(value);
       simulation.setParameters({ heightScale: value });
     });
-    this.gui.add(this.state, 'choppiness', 0, 3, 0.01).name('Choppiness').decimals(2).onChange((value: number) => {
+    this.gui.add(this.state, 'choppiness', 0, 1.5, 0.01).name('Choppiness').decimals(2).onChange((value: number) => {
       simulation.setParameters({ choppiness: value });
     });
 

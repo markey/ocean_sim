@@ -19,9 +19,8 @@ import {
 } from 'three/tsl';
 import type { OceanSimulation } from '../simulation/OceanSimulation';
 
-// Applied on top of the debug height-scale slider. Keeps 1.0 visibly wavy
-// while leaving moderate headroom before seas become unrealistic.
-const HEIGHT_DISPLAY_GAIN = 1.6;
+// Maps slider 1.0 to unit display gain; horizontal displacement is not scaled.
+const HEIGHT_DISPLAY_GAIN = 1;
 
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
@@ -45,9 +44,9 @@ export class WaterMesh {
     });
 
     this.material.positionNode = Fn(() => {
-      const displacement = texture(simulation.displacementDataTexture, uv()).mul(this.heightScaleUniform);
+      const displacement = texture(simulation.displacementDataTexture, uv());
       const horizontalX = displacement.x;
-      const height = displacement.y;
+      const height = displacement.y.mul(this.heightScaleUniform);
       const horizontalZ = displacement.z;
       // Plane lies in local XY; after mesh rotation -PI/2 around X, local Z becomes world Y.
       return positionLocal.add(vec3(horizontalX, horizontalZ.negate(), height));

@@ -10,9 +10,10 @@ function uintUniform(value: number): Node {
   return uniform(value, 'uint' as 'float') as unknown as Node;
 }
 
-// Converts FFT output to world-unit displacement. Tuned so height scale 1.0
-// shows clear waves without needing the slider near its maximum.
-const CPU_HEIGHT_GAIN = 2200;
+// Converts FFT output to world-unit height (meters) before the height-scale slider.
+const CPU_HEIGHT_GAIN = 6;
+// Horizontal choppy displacement is scaled down — full Tessendorf lambda folds the mesh easily.
+const CHOPPINESS_DISPLACEMENT_GAIN = 0.08;
 const MIN_WAVE_NUMBER = 1e-6;
 
 export type OceanSimulationParameters = SpectrumParameters & {
@@ -305,7 +306,7 @@ export class OceanSimulation {
 
         if (kLength > MIN_WAVE_NUMBER) {
           // Tessendorf choppy displacement: Dx(k) = -i * (kx/|k|) * lambda * H(k).
-          const invK = choppiness / kLength;
+          const invK = (choppiness * CHOPPINESS_DISPLACEMENT_GAIN) / kLength;
           const dispFactorX = invK * kx;
           const dispFactorZ = invK * kz;
 
