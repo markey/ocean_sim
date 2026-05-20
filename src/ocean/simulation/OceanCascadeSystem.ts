@@ -423,49 +423,60 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   }
 
   private writeCombinedNormals(resolution: number, patchSize: number): void {
-    const cellSize = patchSize / resolution;
     const halfPatch = patchSize * 0.5;
-    const left = new THREE.Vector3();
-    const right = new THREE.Vector3();
-    const down = new THREE.Vector3();
-    const up = new THREE.Vector3();
-    const tangentX = new THREE.Vector3();
-    const tangentZ = new THREE.Vector3();
-    const normal = new THREE.Vector3();
-
-    const writePosition = (vector: THREE.Vector3, x: number, y: number): void => {
-      const wrappedX = ((x % resolution) + resolution) % resolution;
-      const wrappedY = ((y % resolution) + resolution) % resolution;
-      const index = wrappedY * resolution + wrappedX;
-
-      vector.set(
-        (wrappedX / resolution) * patchSize - halfPatch + (this.mergeDisplacementX[index] ?? 0),
-        this.mergeHeights[index] ?? 0,
-        (wrappedY / resolution) * patchSize - halfPatch + (this.mergeDisplacementZ[index] ?? 0),
-      );
-    };
+    const heights = this.mergeHeights;
+    const displacementsX = this.mergeDisplacementX;
+    const displacementsZ = this.mergeDisplacementZ;
+    const target = this.combinedNormalPixels;
 
     for (let y = 0; y < resolution; y += 1) {
+      const yDown = y === 0 ? resolution - 1 : y - 1;
+      const yUp = y === resolution - 1 ? 0 : y + 1;
+      const baseRow = y * resolution;
+      const downRow = yDown * resolution;
+      const upRow = yUp * resolution;
+      const downBaseZ = (yDown / resolution) * patchSize - halfPatch;
+      const upBaseZ = (yUp / resolution) * patchSize - halfPatch;
+
       for (let x = 0; x < resolution; x += 1) {
         const pixelIndex = (y * resolution + x) * 4;
+        const xLeft = x === 0 ? resolution - 1 : x - 1;
+        const xRight = x === resolution - 1 ? 0 : x + 1;
+        const leftIndex = baseRow + xLeft;
+        const rightIndex = baseRow + xRight;
+        const downIndex = downRow + x;
+        const upIndex = upRow + x;
+        const leftBaseX = (xLeft / resolution) * patchSize - halfPatch;
+        const rightBaseX = (xRight / resolution) * patchSize - halfPatch;
 
-        writePosition(left, x - 1, y);
-        writePosition(right, x + 1, y);
-        writePosition(down, x, y - 1);
-        writePosition(up, x, y + 1);
+        const tangentXx =
+          rightBaseX + displacementsX[rightIndex]! - (leftBaseX + displacementsX[leftIndex]!);
+        const tangentXy = heights[rightIndex]! - heights[leftIndex]!;
+        const tangentXz = displacementsZ[rightIndex]! - displacementsZ[leftIndex]!;
+        const tangentZx = displacementsX[upIndex]! - displacementsX[downIndex]!;
+        const tangentZy = heights[upIndex]! - heights[downIndex]!;
+        const tangentZz =
+          upBaseZ + displacementsZ[upIndex]! - (downBaseZ + displacementsZ[downIndex]!);
 
-        tangentX.subVectors(right, left).divideScalar(cellSize * 2);
-        tangentZ.subVectors(up, down).divideScalar(cellSize * 2);
-        normal.crossVectors(tangentZ, tangentX).normalize();
+        let normalX = tangentZy * tangentXz - tangentZz * tangentXy;
+        let normalY = tangentZz * tangentXx - tangentZx * tangentXz;
+        let normalZ = tangentZx * tangentXy - tangentZy * tangentXx;
+        const invLength = 1 / Math.hypot(normalX, normalY, normalZ);
 
-        if (normal.y < 0) {
-          normal.negate();
+        normalX *= invLength;
+        normalY *= invLength;
+        normalZ *= invLength;
+
+        if (normalY < 0) {
+          normalX = -normalX;
+          normalY = -normalY;
+          normalZ = -normalZ;
         }
 
-        this.combinedNormalPixels[pixelIndex] = normal.x * 0.5 + 0.5;
-        this.combinedNormalPixels[pixelIndex + 1] = normal.y * 0.5 + 0.5;
-        this.combinedNormalPixels[pixelIndex + 2] = normal.z * 0.5 + 0.5;
-        this.combinedNormalPixels[pixelIndex + 3] = 1;
+        target[pixelIndex] = normalX * 0.5 + 0.5;
+        target[pixelIndex + 1] = normalY * 0.5 + 0.5;
+        target[pixelIndex + 2] = normalZ * 0.5 + 0.5;
+        target[pixelIndex + 3] = 1;
       }
     }
   }
@@ -473,38 +484,35 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   private writeCombinedJacobian(resolution: number, patchSize: number): void {
     const cellSize = patchSize / resolution;
     const invTwoCell = 1 / (2 * cellSize);
-
-    const sample = (field: Float32Array, x: number, y: number): number => {
-      const wrappedX = ((x % resolution) + resolution) % resolution;
-      const wrappedY = ((y % resolution) + resolution) % resolution;
-      return field[wrappedY * resolution + wrappedX] ?? 0;
-    };
+    const displacementsX = this.mergeDisplacementX;
+    const displacementsZ = this.mergeDisplacementZ;
+    const target = this.combinedJacobianPixels;
 
     for (let y = 0; y < resolution; y += 1) {
+      const yDown = y === 0 ? resolution - 1 : y - 1;
+      const yUp = y === resolution - 1 ? 0 : y + 1;
+      const baseRow = y * resolution;
+      const downRow = yDown * resolution;
+      const upRow = yUp * resolution;
+
       for (let x = 0; x < resolution; x += 1) {
         const pixelIndex = (y * resolution + x) * 4;
-        const dDxDx =
-          (sample(this.mergeDisplacementX, x + 1, y) -
-            sample(this.mergeDisplacementX, x - 1, y)) *
-          invTwoCell;
-        const dDxDz =
-          (sample(this.mergeDisplacementX, x, y + 1) -
-            sample(this.mergeDisplacementX, x, y - 1)) *
-          invTwoCell;
-        const dDzDx =
-          (sample(this.mergeDisplacementZ, x + 1, y) -
-            sample(this.mergeDisplacementZ, x - 1, y)) *
-          invTwoCell;
-        const dDzDz =
-          (sample(this.mergeDisplacementZ, x, y + 1) -
-            sample(this.mergeDisplacementZ, x, y - 1)) *
-          invTwoCell;
+        const xLeft = x === 0 ? resolution - 1 : x - 1;
+        const xRight = x === resolution - 1 ? 0 : x + 1;
+        const leftIndex = baseRow + xLeft;
+        const rightIndex = baseRow + xRight;
+        const downIndex = downRow + x;
+        const upIndex = upRow + x;
+        const dDxDx = (displacementsX[rightIndex]! - displacementsX[leftIndex]!) * invTwoCell;
+        const dDxDz = (displacementsX[upIndex]! - displacementsX[downIndex]!) * invTwoCell;
+        const dDzDx = (displacementsZ[rightIndex]! - displacementsZ[leftIndex]!) * invTwoCell;
+        const dDzDz = (displacementsZ[upIndex]! - displacementsZ[downIndex]!) * invTwoCell;
         const jacobian = (1 + dDxDx) * (1 + dDzDz) - dDxDz * dDzDx;
 
-        this.combinedJacobianPixels[pixelIndex] = jacobian;
-        this.combinedJacobianPixels[pixelIndex + 1] = Math.max(0, 1 - jacobian);
-        this.combinedJacobianPixels[pixelIndex + 2] = 0;
-        this.combinedJacobianPixels[pixelIndex + 3] = 1;
+        target[pixelIndex] = jacobian;
+        target[pixelIndex + 1] = Math.max(0, 1 - jacobian);
+        target[pixelIndex + 2] = 0;
+        target[pixelIndex + 3] = 1;
       }
     }
   }

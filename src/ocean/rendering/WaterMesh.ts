@@ -18,6 +18,7 @@ import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshStandardNodeMaterial;
+  private readonly basePositions: Float32Array;
 
   constructor(surface: OceanSurfaceProvider) {
     const { resolution, patchSize } = surface.parameters;
@@ -49,11 +50,18 @@ export class WaterMesh {
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.name = 'FFT Water Mesh';
     this.mesh.rotation.x = -Math.PI / 2;
+    this.basePositions = new Float32Array(
+      (geometry.attributes.position as THREE.BufferAttribute).array as Float32Array,
+    );
   }
 
   update(renderer: THREE.WebGPURenderer, surface: OceanSurfaceProvider): void {
     const displacement = surface.displacementDataTexture.image.data as Float32Array;
+    const normals = surface.normalDataTexture.image.data as Float32Array;
     const positions = this.mesh.geometry.attributes.position as THREE.BufferAttribute;
+    const normalAttribute = this.mesh.geometry.attributes.normal as THREE.BufferAttribute;
+    const positionArray = positions.array as Float32Array;
+    const normalArray = normalAttribute.array as Float32Array;
     const resolution = surface.parameters.resolution;
 
     // PlaneGeometry is XY; local Z becomes world Y after the mesh X rotation.
@@ -62,15 +70,30 @@ export class WaterMesh {
         // PlaneGeometry row order matches simulation, but V is flipped vs FFT layout.
         const simIndex = y * resolution + x;
         const vertexIndex = (resolution - 1 - y) * resolution + x;
-        const height = displacement[simIndex * 4 + 1] ?? 0;
-        positions.setZ(vertexIndex, height);
+        const pixelIndex = simIndex * 4;
+        const attributeIndex = vertexIndex * 3;
+        const displacementX = displacement[pixelIndex] ?? 0;
+        const height = displacement[pixelIndex + 1] ?? 0;
+        const displacementZ = displacement[pixelIndex + 2] ?? 0;
+        const worldNormalX = ((normals[pixelIndex] ?? 0.5) - 0.5) * 2;
+        const worldNormalY = ((normals[pixelIndex + 1] ?? 1) - 0.5) * 2;
+        const worldNormalZ = ((normals[pixelIndex + 2] ?? 0.5) - 0.5) * 2;
+
+        positionArray[attributeIndex] = (this.basePositions[attributeIndex] ?? 0) + displacementX;
+        positionArray[attributeIndex + 1] =
+          (this.basePositions[attributeIndex + 1] ?? 0) - displacementZ;
+        positionArray[attributeIndex + 2] = height;
+
+        // Convert world-space ocean normals back into the rotated plane's local space.
+        normalArray[attributeIndex] = worldNormalX;
+        normalArray[attributeIndex + 1] = -worldNormalZ;
+        normalArray[attributeIndex + 2] = worldNormalY;
       }
     }
 
     positions.needsUpdate = true;
-    this.mesh.geometry.computeVertexNormals();
+    normalAttribute.needsUpdate = true;
     void renderer;
-    void surface;
   }
 
   /** Height scale is applied per cascade; kept for debug UI compatibility. */

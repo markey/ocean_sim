@@ -162,6 +162,9 @@ export class OceanSimulation {
   private readonly cpuDisplacementX: Float32Array;
   private readonly cpuDisplacementZ: Float32Array;
   private readonly fftScratch: Float32Array;
+  private readonly fftBitReversalSwaps: Uint32Array;
+  private readonly fftTwiddleRealByStage: Float32Array[];
+  private readonly fftTwiddleImagByStage: Float32Array[];
   private readonly heightPixels: Float32Array;
   private readonly displacementPixels: Float32Array;
   private readonly normalPixels: Float32Array;
@@ -213,6 +216,9 @@ export class OceanSimulation {
     this.cpuDisplacementX = new Float32Array(vertexCount * 2);
     this.cpuDisplacementZ = new Float32Array(vertexCount * 2);
     this.fftScratch = new Float32Array(resolution * 2);
+    this.fftBitReversalSwaps = this.createFftBitReversalSwaps(resolution);
+    [this.fftTwiddleRealByStage, this.fftTwiddleImagByStage] =
+      this.createFftTwiddleTables(resolution);
     this.fftPing = createFloatStorageTexture(resolution);
     this.fftPong = createFloatStorageTexture(resolution);
     this.fft = new GpuFFT(resolution, this.fftPing, this.fftPong);
@@ -537,6 +543,54 @@ export class OceanSimulation {
 
   private inverseFft1D(data: Float32Array): void {
     const { resolution } = this.parameters;
+    const swaps = this.fftBitReversalSwaps;
+    const twiddleRealByStage = this.fftTwiddleRealByStage;
+    const twiddleImagByStage = this.fftTwiddleImagByStage;
+
+    for (let swapIndex = 0; swapIndex < swaps.length; swapIndex += 2) {
+      const iR = swaps[swapIndex]! * 2;
+      const jR = swaps[swapIndex + 1]! * 2;
+      const real = data[iR]!;
+      const imag = data[iR + 1]!;
+
+      data[iR] = data[jR]!;
+      data[iR + 1] = data[jR + 1]!;
+      data[jR] = real;
+      data[jR + 1] = imag;
+    }
+
+    let stage = 0;
+    for (let length = 2; length <= resolution; length <<= 1) {
+      const halfLength = length >> 1;
+      const twiddleReal = twiddleRealByStage[stage]!;
+      const twiddleImag = twiddleImagByStage[stage]!;
+
+      for (let start = 0; start < resolution; start += length) {
+        for (let offset = 0; offset < halfLength; offset += 1) {
+          const evenIndex = (start + offset) * 2;
+          const oddIndex = (start + offset + halfLength) * 2;
+          const wr = twiddleReal[offset]!;
+          const wi = twiddleImag[offset]!;
+          const oddR = data[oddIndex]!;
+          const oddI = data[oddIndex + 1]!;
+          const rotatedR = wr * oddR - wi * oddI;
+          const rotatedI = wr * oddI + wi * oddR;
+          const evenR = data[evenIndex]!;
+          const evenI = data[evenIndex + 1]!;
+
+          data[evenIndex] = evenR + rotatedR;
+          data[evenIndex + 1] = evenI + rotatedI;
+          data[oddIndex] = evenR - rotatedR;
+          data[oddIndex + 1] = evenI - rotatedI;
+        }
+      }
+
+      stage += 1;
+    }
+  }
+
+  private createFftBitReversalSwaps(resolution: number): Uint32Array {
+    const swaps: number[] = [];
 
     for (let i = 1, j = 0; i < resolution; i += 1) {
       let bit = resolution >> 1;
@@ -548,43 +602,34 @@ export class OceanSimulation {
       j ^= bit;
 
       if (i < j) {
-        const iR = i * 2;
-        const jR = j * 2;
-        const real = data[iR] ?? 0;
-        const imag = data[iR + 1] ?? 0;
-
-        data[iR] = data[jR] ?? 0;
-        data[iR + 1] = data[jR + 1] ?? 0;
-        data[jR] = real;
-        data[jR + 1] = imag;
+        swaps.push(i, j);
       }
     }
+
+    return new Uint32Array(swaps);
+  }
+
+  private createFftTwiddleTables(resolution: number): [Float32Array[], Float32Array[]] {
+    const realByStage: Float32Array[] = [];
+    const imagByStage: Float32Array[] = [];
 
     for (let length = 2; length <= resolution; length <<= 1) {
       const halfLength = length >> 1;
       const angleStep = (2 * Math.PI) / length;
+      const real = new Float32Array(halfLength);
+      const imag = new Float32Array(halfLength);
 
-      for (let start = 0; start < resolution; start += length) {
-        for (let offset = 0; offset < halfLength; offset += 1) {
-          const evenIndex = (start + offset) * 2;
-          const oddIndex = (start + offset + halfLength) * 2;
-          const angle = angleStep * offset;
-          const wr = Math.cos(angle);
-          const wi = Math.sin(angle);
-          const oddR = data[oddIndex] ?? 0;
-          const oddI = data[oddIndex + 1] ?? 0;
-          const rotatedR = wr * oddR - wi * oddI;
-          const rotatedI = wr * oddI + wi * oddR;
-          const evenR = data[evenIndex] ?? 0;
-          const evenI = data[evenIndex + 1] ?? 0;
-
-          data[evenIndex] = evenR + rotatedR;
-          data[evenIndex + 1] = evenI + rotatedI;
-          data[oddIndex] = evenR - rotatedR;
-          data[oddIndex + 1] = evenI - rotatedI;
-        }
+      for (let offset = 0; offset < halfLength; offset += 1) {
+        const angle = angleStep * offset;
+        real[offset] = Math.cos(angle);
+        imag[offset] = Math.sin(angle);
       }
+
+      realByStage.push(real);
+      imagByStage.push(imag);
     }
+
+    return [realByStage, imagByStage];
   }
 
   private createUploadH0Node(): ComputeNode {
