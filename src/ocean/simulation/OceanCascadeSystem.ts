@@ -1,4 +1,7 @@
 import * as THREE from 'three/webgpu';
+import { FoamAccumulator } from '../foam/FoamAccumulator';
+import type { FoamParameters } from '../foam/types';
+import { DEFAULT_FOAM_PARAMETERS } from '../foam/types';
 import type { OceanPreset } from '../spectrum/types';
 import {
   CASCADE_IDS,
@@ -122,9 +125,11 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   readonly normalDataTexture: THREE.DataTexture;
   readonly jacobianDataTexture: THREE.DataTexture;
   readonly heightDataTexture: THREE.DataTexture;
+  readonly foamDataTexture: THREE.DataTexture;
 
   readonly systemParameters: OceanCascadeSystemParameters;
   readonly cascades: Record<CascadeId, OceanSimulation>;
+  readonly foam: FoamAccumulator;
 
   private readonly combinedHeightPixels: Float32Array;
   private readonly combinedDisplacementPixels: Float32Array;
@@ -174,7 +179,18 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
       detail: new OceanSimulation(this.buildCascadeSimulationParameters('detail')),
     };
 
+    this.foam = new FoamAccumulator(resolution, DEFAULT_FOAM_PARAMETERS);
+    this.foamDataTexture = this.foam.foamDataTexture;
+
     this.refreshUpsampledBands(['swell', 'detail']);
+  }
+
+  setFoamParameters(next: Partial<FoamParameters>): void {
+    this.foam.setParameters(next);
+  }
+
+  clearFoam(): void {
+    this.foam.clear();
   }
 
   getCascade(id: CascadeId): OceanSimulation {
@@ -231,8 +247,10 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   syncGpuTextures(renderer: THREE.WebGPURenderer): void {
     this.displacementDataTexture.needsUpdate = true;
     this.normalDataTexture.needsUpdate = true;
+    this.foam.foamDataTexture.needsUpdate = true;
     renderer.initTexture(this.displacementDataTexture);
     renderer.initTexture(this.normalDataTexture);
+    renderer.initTexture(this.foam.foamDataTexture);
   }
 
   applyPreset(preset: OceanPreset, windDirectionRadians: number): void {
@@ -308,6 +326,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     }
 
     this.mergeCascadeFields();
+    this.foam.update(deltaSeconds, this.combinedJacobianPixels);
   }
 
   dispose(): void {
@@ -318,6 +337,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     this.normalDataTexture.dispose();
     this.jacobianDataTexture.dispose();
     this.heightDataTexture.dispose();
+    this.foam.dispose();
   }
 
   private refreshUpsampledBands(ids: Array<'swell' | 'detail'>): void {

@@ -88,7 +88,7 @@ export const DEFAULT_CASCADE_CONFIGS: Record<CascadeId, CascadeConfig> = {
     label: 'Mid waves',
     enabled: true,
     resolution: 256,
-    patchSize: 220,
+    patchSize: 160,
     amplitude: cascadeAmplitudesFromPreset(0.0012).mid,
     windInfluence: 1,
     phaseOffsetX: 0,
@@ -114,7 +114,7 @@ export const DEFAULT_CASCADE_CONFIGS: Record<CascadeId, CascadeConfig> = {
 
 export function createDefaultCascadeSystemParameters(): OceanCascadeSystemParameters {
   return {
-    worldPatchSize: 220,
+    worldPatchSize: 160,
     /** Output / mid-band resolution; swell and detail may use lower internal grids. */
     resolution: DEFAULT_CASCADE_CONFIGS.mid.resolution,
     gravity: 9.81,

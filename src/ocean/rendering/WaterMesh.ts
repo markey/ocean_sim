@@ -5,6 +5,7 @@ import {
   color,
   dot,
   float,
+  max,
   mix,
   normalWorld,
   normalize,
@@ -12,6 +13,9 @@ import {
   positionWorld,
   pow,
   saturate,
+  texture,
+  uniform,
+  vec2,
 } from 'three/tsl';
 import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
 
@@ -19,9 +23,12 @@ export class WaterMesh {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshStandardNodeMaterial;
   private readonly basePositions: Float32Array;
+  private readonly patchSizeUniform = uniform(160);
+  private readonly foamStrengthUniform = uniform(1.35);
 
   constructor(surface: OceanSurfaceProvider) {
     const { resolution, patchSize } = surface.parameters;
+    this.patchSizeUniform.value = patchSize;
     const geometry = new THREE.PlaneGeometry(
       patchSize,
       patchSize,
@@ -31,20 +38,44 @@ export class WaterMesh {
 
     this.material = new THREE.MeshStandardNodeMaterial({
       color: new THREE.Color(0x0d7790),
-      roughness: 0.22,
-      metalness: 0.02,
+      roughness: 0.28,
+      metalness: 0.01,
     });
+    this.material.flatShading = true;
+
+    const patchHalf = this.patchSizeUniform.mul(0.5);
+    const foamTex = surface.foamDataTexture;
+    const jacobianTex = surface.jacobianDataTexture;
 
     this.material.colorNode = Fn(() => {
       const worldNormal = normalWorld;
       const deepWater = color(0x0a5f73);
       const shallowWater = color(0x1f9db8);
       const skyReflection = color(0xb8dff0);
+      const foamColor = color(0xf2f8fc);
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
       const fresnel = pow(oneMinus(saturate(dot(worldNormal, viewDirection))), float(4));
       const facing = saturate(worldNormal.y.mul(0.5).add(0.5));
-      const baseColor = mix(deepWater, shallowWater, facing);
-      return mix(baseColor, skyReflection, fresnel.mul(0.55));
+      const slope = oneMinus(facing);
+      const waveShade = pow(saturate(slope), float(0.55));
+      const baseColor = mix(deepWater, shallowWater, facing.mul(0.45).add(waveShade.mul(0.55)));
+      const reflected = mix(baseColor, skyReflection, fresnel.mul(0.45));
+
+      // World XZ → simulation UV (repeat-wrapped foam field).
+      const foamUv = vec2(
+        positionWorld.x.add(patchHalf).div(this.patchSizeUniform),
+        positionWorld.z.add(patchHalf).div(this.patchSizeUniform),
+      );
+      const accumulatedFoam = texture(foamTex, foamUv).r.mul(this.foamStrengthUniform);
+      const jacobianSample = texture(jacobianTex, foamUv);
+      const compression = jacobianSample.g;
+      const instantFoam = pow(saturate(compression.mul(float(3.2))), float(1.4));
+      const foamMask = max(
+        pow(saturate(accumulatedFoam), float(0.7)),
+        instantFoam,
+      ).mul(pow(saturate(worldNormal.y), float(0.2)));
+
+      return mix(reflected, foamColor, saturate(foamMask));
     })();
 
     this.mesh = new THREE.Mesh(geometry, this.material);
@@ -98,6 +129,14 @@ export class WaterMesh {
 
   /** Height scale is applied per cascade; kept for debug UI compatibility. */
   setHeightScale(_heightScale: number): void {}
+
+  setPatchSize(patchSize: number): void {
+    this.patchSizeUniform.value = patchSize;
+  }
+
+  setFoamStrength(strength: number): void {
+    this.foamStrengthUniform.value = strength;
+  }
 
   dispose(): void {
     this.mesh.geometry.dispose();

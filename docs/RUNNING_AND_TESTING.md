@@ -78,7 +78,8 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Amplitude** | Spectrum energy; also auto-scales wave height via calibration |
 | **Choppiness** | Increases horizontal displacement and sharper crests |
 | **Tiny-wave damping** | Higher values suppress small ripples |
-| **Debug texture** | Fullscreen overlay shows height, displacement, normal, or Jacobian |
+| **Debug texture** | PiP overlay shows height, displacement, normal, Jacobian, or accumulated foam |
+| **Foam** | Whitecaps build at crests where Jacobian compression exceeds threshold; decay and clear in the Foam folder |
 
 ### Performance
 

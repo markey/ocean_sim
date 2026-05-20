@@ -20,7 +20,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   scene.background = new THREE.Color(0x8ab7c9);
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
-  camera.position.set(120, 90, 140);
+  camera.position.set(52, 16, 58);
 
   const renderer = new THREE.WebGPURenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -34,10 +34,10 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.target.set(0, 0, 0);
-  controls.maxPolarAngle = Math.PI * 0.49;
-  controls.minDistance = 40;
-  controls.maxDistance = 500;
+  controls.target.set(0, 3, 0);
+  controls.maxPolarAngle = Math.PI * 0.48;
+  controls.minDistance = 12;
+  controls.maxDistance = 280;
 
   const sun = new THREE.DirectionalLight(0xffffff, 3.2);
   sun.position.set(80, 120, 40);

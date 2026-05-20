@@ -9,6 +9,7 @@ import {
 } from '../simulation/cascadeConfig';
 import type { OceanCascadeSystem } from '../simulation/OceanCascadeSystem';
 import type { WaterMesh } from '../rendering/WaterMesh';
+import { DEFAULT_FOAM_PARAMETERS, type FoamParameters } from '../foam/types';
 import type { DebugCascadeTarget, DebugTextureMode, DebugTextureView } from './DebugTextureView';
 
 type DebugGuiState = OceanCascadeSystemParameters & {
@@ -16,6 +17,7 @@ type DebugGuiState = OceanCascadeSystemParameters & {
   preset: OceanPresetId;
   debugView: DebugTextureMode;
   debugCascade: DebugCascadeTarget;
+  foam: FoamParameters & { renderStrength: number };
 };
 
 function refreshGuiDisplays(gui: GUI): void {
@@ -46,6 +48,7 @@ export class DebugControls {
       preset: 'windySea',
       debugView: 'off',
       debugCascade: 'combined',
+      foam: { ...DEFAULT_FOAM_PARAMETERS, renderStrength: 1.35 },
     };
 
     const syncGlobalSpectrum = () => {
@@ -88,6 +91,7 @@ export class DebugControls {
       this.state.cascades.detail.smallWaveDamping = preset.smallWaveDamping * 1.5;
       refreshGuiDisplays(this.gui);
       water.setHeightScale(preset.heightScale);
+      cascadeSystem.clearFoam();
       cascadeSystem.applyPreset(preset, (preset.windDirection * Math.PI) / 180);
     };
 
@@ -199,6 +203,41 @@ export class DebugControls {
       addCascadeFolder(id);
     }
 
+    const foamFolder = this.gui.addFolder('Foam');
+    const syncFoam = () => {
+      const { renderStrength: _renderStrength, ...foamParams } = this.state.foam;
+      cascadeSystem.setFoamParameters(foamParams);
+      water.setFoamStrength(this.state.foam.renderStrength);
+    };
+
+    foamFolder.add(this.state.foam, 'enabled').name('Enabled').onChange(syncFoam);
+    foamFolder
+      .add(this.state.foam, 'threshold', 0, 0.5, 0.01)
+      .name('Threshold')
+      .decimals(2)
+      .onChange(syncFoam);
+    foamFolder
+      .add(this.state.foam, 'accumulationRate', 0, 6, 0.05)
+      .name('Accumulation')
+      .decimals(2)
+      .onChange(syncFoam);
+    foamFolder
+      .add(this.state.foam, 'decayRate', 0.05, 3, 0.01)
+      .name('Decay')
+      .decimals(2)
+      .onChange(syncFoam);
+    foamFolder
+      .add(this.state.foam, 'coverage', 0.25, 3, 0.05)
+      .name('Coverage')
+      .decimals(2)
+      .onChange(syncFoam);
+    foamFolder
+      .add(this.state.foam, 'renderStrength', 0, 1.5, 0.01)
+      .name('Render strength')
+      .decimals(2)
+      .onChange(syncFoam);
+    foamFolder.add({ clear: () => cascadeSystem.clearFoam() }, 'clear').name('Clear foam');
+
     const debugFolder = this.gui.addFolder('Debug views');
     debugFolder
       .add(this.state, 'debugCascade', {
@@ -218,6 +257,7 @@ export class DebugControls {
         Displacement: 'displacement',
         Normal: 'normal',
         Jacobian: 'jacobian',
+        Foam: 'foam',
       })
       .name('Texture')
       .onChange((mode: DebugTextureMode) => {
@@ -227,6 +267,8 @@ export class DebugControls {
     debugView.setMode(this.state.debugView);
     debugView.setCascadeTarget(this.state.debugCascade);
 
+    syncFoam();
+    water.setPatchSize(parameters.worldPatchSize);
     this.applyPreset(OCEAN_PRESETS[this.state.preset]);
   }
 

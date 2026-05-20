@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, attributeArray, compute, ivec2, instanceIndex, storage, storageTexture, texture, textureStore, uniform, wgslFn } from 'three/tsl';
 import type Node from 'three/src/nodes/core/Node.js';
 import type ComputeNode from 'three/src/nodes/gpgpu/ComputeNode.js';
+import { getEmptyFoamTexture } from '../foam/emptyFoamTexture';
 import { GpuFFT } from '../fft/GpuFFT';
 import { createInitialSpectrum } from '../spectrum/index';
 import type { SpectrumParameters } from '../spectrum/types';
@@ -11,8 +12,8 @@ function uintUniform(value: number): Node {
   return uniform(value, 'uint' as 'float') as unknown as Node;
 }
 
-// Scales horizontal chop separately so the choppiness slider does not fold the mesh.
-const CHOPPINESS_DISPLACEMENT_GAIN = 0.12;
+// Horizontal chop gain — must be high enough for Jacobian folding / crest foam.
+const CHOPPINESS_DISPLACEMENT_GAIN = 0.36;
 const MIN_WAVE_NUMBER = 1e-6;
 
 export type OceanSimulationParameters = SpectrumParameters & {
@@ -152,6 +153,8 @@ export class OceanSimulation {
   readonly jacobianDataTexture: THREE.DataTexture;
   /** Milestone 1 height-only texture kept for debug views. */
   readonly heightDataTexture: THREE.DataTexture;
+  /** Per-band simulations do not accumulate foam; combined merge uses {@link FoamAccumulator}. */
+  readonly foamDataTexture: THREE.DataTexture = getEmptyFoamTexture();
   readonly heightTexture: THREE.StorageTexture;
   readonly heightBuffer: THREE.StorageBufferAttribute;
   readonly spectrumTexture: THREE.StorageTexture;

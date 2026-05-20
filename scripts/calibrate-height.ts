@@ -11,7 +11,7 @@ const RESOLUTION = 256;
 
 const defaults: SpectrumParameters = {
   resolution: RESOLUTION,
-  patchSize: 220,
+  patchSize: 160,
   amplitude: 0.0012,
   windSpeed: 16,
   windDirection: (40 * Math.PI) / 180,

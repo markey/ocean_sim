@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu';
 import { Fn, color, float, max, mix, saturate, texture, uniform, uv, vec3 } from 'three/tsl';
 import type { CascadeId } from '../simulation/cascadeConfig';
 import type { OceanCascadeSystem } from '../simulation/OceanCascadeSystem';
-export type DebugTextureMode = 'off' | 'height' | 'displacement' | 'normal' | 'jacobian';
+export type DebugTextureMode = 'off' | 'height' | 'displacement' | 'normal' | 'jacobian' | 'foam';
 export type DebugCascadeTarget = 'combined' | CascadeId;
 
 export class DebugTextureView {
@@ -31,6 +31,7 @@ export class DebugTextureView {
       const displacementTex = texture(cascadeSystem.displacementDataTexture, sampleUv);
       const normalTex = texture(cascadeSystem.normalDataTexture, sampleUv);
       const jacobianTex = texture(cascadeSystem.jacobianDataTexture, sampleUv);
+      const foamTex = texture(cascadeSystem.foamDataTexture, sampleUv);
 
       const swellHeight = texture(cascadeSystem.cascades.swell.heightDataTexture, sampleUv).x;
       const midHeight = texture(cascadeSystem.cascades.mid.heightDataTexture, sampleUv).x;
@@ -85,7 +86,7 @@ export class DebugTextureView {
           surfaceUniform.equal(2).select(midJacobian, surfaceUniform.equal(3).select(detailJacobian, jacobianTex)),
         );
 
-      const heightView = vec3(saturate(heightSample.mul(0.008).add(0.5)));
+      const heightView = vec3(saturate(heightSample.mul(0.028).add(0.5)));
       const displacementView = displacementSample.xyz.mul(0.35).add(0.5);
       const normalView = normalSample.mul(0.5).add(0.5);
       const compression = float(1).sub(jacobianSample.x);
@@ -94,13 +95,17 @@ export class DebugTextureView {
         color(0xf2f6fa),
         max(compression, float(0)),
       );
+      const foamView = mix(color(0x0a2a3d), color(0xffffff), saturate(foamTex.r));
 
       const mode = modeUniform;
       return mode
-        .equal(4)
+        .equal(5)
         .select(
-          jacobianView,
-          mode.equal(3).select(normalView, mode.equal(2).select(displacementView, heightView)),
+          foamView,
+          mode.equal(4).select(
+            jacobianView,
+            mode.equal(3).select(normalView, mode.equal(2).select(displacementView, heightView)),
+          ),
         );
     })();
 
@@ -122,7 +127,9 @@ export class DebugTextureView {
             ? 3
             : mode === 'jacobian'
               ? 4
-              : 0;
+              : mode === 'foam'
+                ? 5
+                : 0;
   }
 
   setCascadeTarget(target: DebugCascadeTarget): void {

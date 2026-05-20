@@ -8,4 +8,6 @@ export type OceanSurfaceProvider = {
   readonly normalDataTexture: THREE.DataTexture;
   readonly jacobianDataTexture: THREE.DataTexture;
   readonly heightDataTexture: THREE.DataTexture;
+  /** R = persistent accumulated crest foam in [0, 1]. */
+  readonly foamDataTexture: THREE.DataTexture;
 };
