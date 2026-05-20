@@ -20,6 +20,7 @@ function createDefaultParameters(): OceanSimulationParameters {
     seed: 1337,
     heightScale: 1,
     timeScale: 1,
+    choppiness: 1.25,
   };
 }
 
@@ -58,7 +59,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   sun.position.set(80, 120, 40);
   scene.add(sun);
   scene.add(new THREE.HemisphereLight(0xb9e7ff, 0x1f3b43, 1.2));
-  scene.add(new THREE.GridHelper(220, 16, 0x5f7d88, 0x42616c));
+  scene.add(new THREE.GridHelper(220, 16, 0x5f7d88, 0x42616c).translateY(-0.05));
 
   const parameters = createDefaultParameters();
   const simulation = new OceanSimulation({

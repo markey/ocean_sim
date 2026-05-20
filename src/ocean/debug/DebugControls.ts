@@ -31,6 +31,9 @@ export class DebugControls {
       water.setHeightScale(value);
       simulation.setParameters({ heightScale: value });
     });
+    this.gui.add(parameters, 'choppiness', 0, 3, 0.01).name('Choppiness').decimals(2).onChange((value: number) => {
+      simulation.setParameters({ choppiness: value });
+    });
     this.gui.add(parameters, 'smallWaveDamping', 0.001, 0.1, 0.001).name('Tiny-wave damping').decimals(3).onFinishChange(syncSpectrum);
 
     water.setHeightScale(parameters.heightScale);

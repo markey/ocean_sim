@@ -11,10 +11,12 @@ function uintUniform(value: number): Node {
 }
 
 const CPU_HEIGHT_GAIN = 1000;
+const MIN_WAVE_NUMBER = 1e-6;
 
 export type OceanSimulationParameters = SpectrumParameters & {
   heightScale: number;
   timeScale: number;
+  choppiness: number;
 };
 
 type EvolveKernelParams = {
@@ -93,8 +95,6 @@ fn complexToHeight(
   let coord = vec2<i32>(i32(x), i32(y));
   let value = textureLoad(source, coord, 0).x;
   let checker = select(-1.0, 1.0, ((x + y) & 1u) == 0u);
-  // Keep Milestone 1's debug output visibly displaced. Physical amplitude
-  // calibration can divide by resolution^2 once normals/choppiness land.
   let normalized = value * checker / f32(resolution * resolution);
   let index = y * resolution + x;
   heights[index] = vec4<f32>(normalized, 0.0, 0.0, 1.0);
@@ -116,17 +116,46 @@ function createFloatStorageTexture(resolution: number): THREE.StorageTexture {
   return result;
 }
 
+function createSimulationDataTexture(
+  resolution: number,
+  data: Float32Array,
+): THREE.DataTexture {
+  const result = new THREE.DataTexture(
+    data,
+    resolution,
+    resolution,
+    THREE.RGBAFormat,
+    THREE.FloatType,
+  );
+  result.minFilter = THREE.NearestFilter;
+  result.magFilter = THREE.NearestFilter;
+  result.wrapS = THREE.RepeatWrapping;
+  result.wrapT = THREE.RepeatWrapping;
+  result.generateMipmaps = false;
+  result.needsUpdate = true;
+  return result;
+}
+
 export class OceanSimulation {
-  readonly heightTexture: THREE.StorageTexture;
+  /** RGBA displacement field: R = horizontal X, G = height, B = horizontal Z. */
+  readonly displacementDataTexture: THREE.DataTexture;
+  /** RGBA encoded world-space normal in [0, 1]. */
+  readonly normalDataTexture: THREE.DataTexture;
+  /** Milestone 1 height-only texture kept for debug views. */
   readonly heightDataTexture: THREE.DataTexture;
+  readonly heightTexture: THREE.StorageTexture;
   readonly heightBuffer: THREE.StorageBufferAttribute;
   readonly spectrumTexture: THREE.StorageTexture;
   readonly parameters: OceanSimulationParameters;
 
   private spectrumData: Float32Array;
   private readonly cpuSpectrum: Float32Array;
+  private readonly cpuDisplacementX: Float32Array;
+  private readonly cpuDisplacementZ: Float32Array;
   private readonly fftScratch: Float32Array;
   private readonly heightPixels: Float32Array;
+  private readonly displacementPixels: Float32Array;
+  private readonly normalPixels: Float32Array;
   private readonly h0Texture: THREE.StorageTexture;
   private readonly evolvedSpectrumTexture: THREE.StorageTexture;
   readonly spatialSpectrumTexture: THREE.StorageTexture;
@@ -155,22 +184,16 @@ export class OceanSimulation {
     this.spatialSpectrumTexture = createFloatStorageTexture(resolution);
     this.heightTexture = createFloatStorageTexture(resolution);
     this.heightPixels = new Float32Array(vertexCount * 4);
-    this.heightDataTexture = new THREE.DataTexture(
-      this.heightPixels,
-      resolution,
-      resolution,
-      THREE.RGBAFormat,
-      THREE.FloatType,
-    );
-    this.heightDataTexture.minFilter = THREE.NearestFilter;
-    this.heightDataTexture.magFilter = THREE.NearestFilter;
-    this.heightDataTexture.wrapS = THREE.RepeatWrapping;
-    this.heightDataTexture.wrapT = THREE.RepeatWrapping;
-    this.heightDataTexture.generateMipmaps = false;
-    this.heightDataTexture.needsUpdate = true;
+    this.displacementPixels = new Float32Array(vertexCount * 4);
+    this.normalPixels = new Float32Array(vertexCount * 4);
+    this.heightDataTexture = createSimulationDataTexture(resolution, this.heightPixels);
+    this.displacementDataTexture = createSimulationDataTexture(resolution, this.displacementPixels);
+    this.normalDataTexture = createSimulationDataTexture(resolution, this.normalPixels);
     this.heightBuffer = new THREE.StorageBufferAttribute(vertexCount, 4);
     this.spectrumData = new Float32Array(vertexCount * 4);
     this.cpuSpectrum = new Float32Array(vertexCount * 2);
+    this.cpuDisplacementX = new Float32Array(vertexCount * 2);
+    this.cpuDisplacementZ = new Float32Array(vertexCount * 2);
     this.fftScratch = new Float32Array(resolution * 2);
     this.fftPing = createFloatStorageTexture(resolution);
     this.fftPong = createFloatStorageTexture(resolution);
@@ -212,7 +235,7 @@ export class OceanSimulation {
     this.elapsed += deltaSeconds * this.parameters.timeScale;
     this.timeUniform.value = this.elapsed;
 
-    this.updateCpuHeightField();
+    this.updateCpuSurfaceFields();
   }
 
   dispose(): void {
@@ -221,6 +244,8 @@ export class OceanSimulation {
     this.spatialSpectrumTexture.dispose();
     this.heightTexture.dispose();
     this.heightDataTexture.dispose();
+    this.displacementDataTexture.dispose();
+    this.normalDataTexture.dispose();
     this.fftPing.dispose();
     this.fftPong.dispose();
   }
@@ -232,8 +257,8 @@ export class OceanSimulation {
     this.h0Buffer.value.needsUpdate = true;
   }
 
-  private updateCpuHeightField(): void {
-    const { resolution, patchSize, gravity } = this.parameters;
+  private updateCpuSurfaceFields(): void {
+    const { resolution, patchSize, gravity, choppiness } = this.parameters;
     const twoPiOverLength = (2 * Math.PI) / patchSize;
 
     for (let y = 0; y < resolution; y += 1) {
@@ -245,7 +270,8 @@ export class OceanSimulation {
         const outputIndex = (y * resolution + x) * 2;
         const kx = centeredX * twoPiOverLength;
         const kz = centeredY * twoPiOverLength;
-        const omega = Math.sqrt(gravity * Math.hypot(kx, kz));
+        const kLength = Math.hypot(kx, kz);
+        const omega = Math.sqrt(gravity * kLength);
         const phase = omega * this.elapsed;
         const cosPhase = Math.cos(phase);
         const sinPhase = Math.sin(phase);
@@ -258,29 +284,137 @@ export class OceanSimulation {
         const positiveI = h0r * sinPhase + h0i * cosPhase;
         const negativeR = h0MinusR * cosPhase + h0MinusI * sinPhase;
         const negativeI = -h0MinusR * sinPhase + h0MinusI * cosPhase;
+        const heightR = positiveR + negativeR;
+        const heightI = positiveI + negativeI;
 
-        this.cpuSpectrum[outputIndex] = positiveR + negativeR;
-        this.cpuSpectrum[outputIndex + 1] = positiveI + negativeI;
+        this.cpuSpectrum[outputIndex] = heightR;
+        this.cpuSpectrum[outputIndex + 1] = heightI;
+
+        if (kLength > MIN_WAVE_NUMBER) {
+          // Tessendorf choppy displacement: Dx(k) = -i * (kx/|k|) * lambda * H(k).
+          const invK = choppiness / kLength;
+          const dispFactorX = invK * kx;
+          const dispFactorZ = invK * kz;
+
+          this.cpuDisplacementX[outputIndex] = dispFactorX * heightI;
+          this.cpuDisplacementX[outputIndex + 1] = -dispFactorX * heightR;
+          this.cpuDisplacementZ[outputIndex] = dispFactorZ * heightI;
+          this.cpuDisplacementZ[outputIndex + 1] = -dispFactorZ * heightR;
+        } else {
+          this.cpuDisplacementX[outputIndex] = 0;
+          this.cpuDisplacementX[outputIndex + 1] = 0;
+          this.cpuDisplacementZ[outputIndex] = 0;
+          this.cpuDisplacementZ[outputIndex + 1] = 0;
+        }
       }
     }
 
     this.inverseFft2D(this.cpuSpectrum);
+    this.inverseFft2D(this.cpuDisplacementX);
+    this.inverseFft2D(this.cpuDisplacementZ);
+
+    const heights = new Float32Array(resolution * resolution);
+    const displacementsX = new Float32Array(resolution * resolution);
+    const displacementsZ = new Float32Array(resolution * resolution);
 
     for (let y = 0; y < resolution; y += 1) {
       for (let x = 0; x < resolution; x += 1) {
         const sourceIndex = (y * resolution + x) * 2;
         const pixelIndex = (y * resolution + x) * 4;
+        const gridIndex = y * resolution + x;
         const checker = (x + y) % 2 === 0 ? 1 : -1;
-        const height = ((this.cpuSpectrum[sourceIndex] ?? 0) * checker * CPU_HEIGHT_GAIN) / (resolution * resolution);
+        const normalization = (checker * CPU_HEIGHT_GAIN) / (resolution * resolution);
+        const height = (this.cpuSpectrum[sourceIndex] ?? 0) * normalization;
+        const displacementX = (this.cpuDisplacementX[sourceIndex] ?? 0) * normalization;
+        const displacementZ = (this.cpuDisplacementZ[sourceIndex] ?? 0) * normalization;
+
+        heights[gridIndex] = height;
+        displacementsX[gridIndex] = displacementX;
+        displacementsZ[gridIndex] = displacementZ;
 
         this.heightPixels[pixelIndex] = height;
         this.heightPixels[pixelIndex + 1] = height;
         this.heightPixels[pixelIndex + 2] = height;
         this.heightPixels[pixelIndex + 3] = 1;
+
+        this.displacementPixels[pixelIndex] = displacementX;
+        this.displacementPixels[pixelIndex + 1] = height;
+        this.displacementPixels[pixelIndex + 2] = displacementZ;
+        this.displacementPixels[pixelIndex + 3] = 1;
       }
     }
 
+    this.computeSurfaceNormals(
+      resolution,
+      patchSize,
+      heights,
+      displacementsX,
+      displacementsZ,
+      this.normalPixels,
+    );
+
     this.heightDataTexture.needsUpdate = true;
+    this.displacementDataTexture.needsUpdate = true;
+    this.normalDataTexture.needsUpdate = true;
+  }
+
+  private computeSurfaceNormals(
+    resolution: number,
+    patchSize: number,
+    heights: Float32Array,
+    displacementsX: Float32Array,
+    displacementsZ: Float32Array,
+    target: Float32Array,
+  ): void {
+    const cellSize = patchSize / resolution;
+    const halfPatch = patchSize * 0.5;
+    const left = new THREE.Vector3();
+    const right = new THREE.Vector3();
+    const down = new THREE.Vector3();
+    const up = new THREE.Vector3();
+    const tangentX = new THREE.Vector3();
+    const tangentZ = new THREE.Vector3();
+    const normal = new THREE.Vector3();
+
+    const writePosition = (
+      vector: THREE.Vector3,
+      x: number,
+      y: number,
+    ): void => {
+      const wrappedX = ((x % resolution) + resolution) % resolution;
+      const wrappedY = ((y % resolution) + resolution) % resolution;
+      const index = wrappedY * resolution + wrappedX;
+
+      vector.set(
+        (wrappedX / resolution) * patchSize - halfPatch + (displacementsX[index] ?? 0),
+        heights[index] ?? 0,
+        (wrappedY / resolution) * patchSize - halfPatch + (displacementsZ[index] ?? 0),
+      );
+    };
+
+    for (let y = 0; y < resolution; y += 1) {
+      for (let x = 0; x < resolution; x += 1) {
+        const pixelIndex = (y * resolution + x) * 4;
+
+        writePosition(left, x - 1, y);
+        writePosition(right, x + 1, y);
+        writePosition(down, x, y - 1);
+        writePosition(up, x, y + 1);
+
+        tangentX.subVectors(right, left).divideScalar(cellSize * 2);
+        tangentZ.subVectors(up, down).divideScalar(cellSize * 2);
+        normal.crossVectors(tangentZ, tangentX).normalize();
+
+        if (normal.y < 0) {
+          normal.negate();
+        }
+
+        target[pixelIndex] = normal.x * 0.5 + 0.5;
+        target[pixelIndex + 1] = normal.y * 0.5 + 0.5;
+        target[pixelIndex + 2] = normal.z * 0.5 + 0.5;
+        target[pixelIndex + 3] = 1;
+      }
+    }
   }
 
   private inverseFft2D(data: Float32Array): void {
