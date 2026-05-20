@@ -27,7 +27,7 @@ export class DebugControls {
     this.gui.add(parameters, 'timeScale', 0, 4, 0.01).name('Time scale').decimals(2).onChange((value: number) => {
       simulation.setParameters({ timeScale: value });
     });
-    this.gui.add(parameters, 'heightScale', 0, 3, 0.01).name('Height scale').decimals(2).onChange((value: number) => {
+    this.gui.add(parameters, 'heightScale', 0, 4, 0.05).name('Height scale').decimals(2).onChange((value: number) => {
       water.setHeightScale(value);
       simulation.setParameters({ heightScale: value });
     });

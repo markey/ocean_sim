@@ -19,6 +19,10 @@ import {
 } from 'three/tsl';
 import type { OceanSimulation } from '../simulation/OceanSimulation';
 
+// Applied on top of the debug height-scale slider. Keeps 1.0 visibly wavy
+// while leaving moderate headroom before seas become unrealistic.
+const HEIGHT_DISPLAY_GAIN = 1.6;
+
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshStandardNodeMaterial;
@@ -76,7 +80,7 @@ export class WaterMesh {
   }
 
   setHeightScale(heightScale: number): void {
-    this.heightScaleUniform.value = heightScale;
+    this.heightScaleUniform.value = heightScale * HEIGHT_DISPLAY_GAIN;
   }
 
   dispose(): void {

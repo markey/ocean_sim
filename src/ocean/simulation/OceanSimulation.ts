@@ -10,7 +10,9 @@ function uintUniform(value: number): Node {
   return uniform(value, 'uint' as 'float') as unknown as Node;
 }
 
-const CPU_HEIGHT_GAIN = 1000;
+// Converts FFT output to world-unit displacement. Tuned so height scale 1.0
+// shows clear waves without needing the slider near its maximum.
+const CPU_HEIGHT_GAIN = 2200;
 const MIN_WAVE_NUMBER = 1e-6;
 
 export type OceanSimulationParameters = SpectrumParameters & {
