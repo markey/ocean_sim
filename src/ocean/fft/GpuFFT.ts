@@ -1,23 +1,16 @@
 import * as THREE from 'three/webgpu';
-import { compute, globalId, storageTexture, uniform, wgslFn } from 'three/tsl';
+import { compute, instanceIndex, storageTexture, texture, uniform, wgslFn } from 'three/tsl';
 import type Node from 'three/src/nodes/core/Node.js';
 import type ComputeNode from 'three/src/nodes/gpgpu/ComputeNode.js';
 
 type FftKernelParams = {
   source: Node;
   target: Node;
-  id: typeof globalId;
+  index: typeof instanceIndex;
   resolution: Node;
   stage: Node;
   horizontal: Node;
 };
-
-const WORKGROUP_SIZE = 8;
-const compute2D = compute as unknown as (
-  node: Node,
-  dispatchSize: number[],
-  workgroupSize?: number[],
-) => ComputeNode;
 
 function uintUniform(value: number): Node {
   return uniform(value, 'uint' as 'float') as unknown as Node;
@@ -25,15 +18,15 @@ function uintUniform(value: number): Node {
 
 const bitReverseKernel = wgslFn<FftKernelParams>(`
 fn bitReversePass(
-  source: texture_storage_2d<rgba32float, read>,
+  source: texture_2d<f32>,
   target: texture_storage_2d<rgba32float, write>,
-  id: vec3<u32>,
+  index: u32,
   resolution: u32,
   stage: u32,
   horizontal: u32
 ) -> void {
-  let x = id.x;
-  let y = id.y;
+  let x = index % resolution;
+  let y = index / resolution;
 
   if (x >= resolution || y >= resolution) {
     return;
@@ -52,22 +45,22 @@ fn bitReversePass(
     vec2<i32>(i32(reversed), i32(y)),
     horizontal == 1u
   );
-  let v = textureLoad(source, readCoord);
+  let v = textureLoad(source, readCoord, 0);
   textureStore(target, vec2<i32>(i32(x), i32(y)), v);
 }
 `);
 
 const fftStageKernel = wgslFn<FftKernelParams>(`
 fn fftStagePass(
-  source: texture_storage_2d<rgba32float, read>,
+  source: texture_2d<f32>,
   target: texture_storage_2d<rgba32float, write>,
-  id: vec3<u32>,
+  index: u32,
   resolution: u32,
   stage: u32,
   horizontal: u32
 ) -> void {
-  let x = id.x;
-  let y = id.y;
+  let x = index % resolution;
+  let y = index / resolution;
 
   if (x >= resolution || y >= resolution) {
     return;
@@ -93,8 +86,8 @@ fn fftStagePass(
     horizontal == 1u
   );
 
-  let a = textureLoad(source, evenCoord).xy;
-  let b = textureLoad(source, oddCoord).xy;
+  let a = textureLoad(source, evenCoord, 0).xy;
+  let b = textureLoad(source, oddCoord, 0).xy;
 
   // Positive sign gives the inverse transform convention used by Tessendorf.
   let angle = 6.28318530718 * f32(pairOffset) / f32(span);
@@ -117,17 +110,17 @@ function makePass(
   horizontal: boolean,
   kernel: typeof bitReverseKernel,
 ): ComputeNode {
-  return compute2D(
-    kernel({
-      source: storageTexture(source).toReadOnly() as unknown as Node,
-      target: storageTexture(target).toWriteOnly() as unknown as Node,
-      id: globalId,
-      resolution: uintUniform(resolution),
-      stage: uintUniform(stage),
-      horizontal: uintUniform(horizontal ? 1 : 0),
-    }),
-    [resolution / WORKGROUP_SIZE, resolution / WORKGROUP_SIZE],
-    [WORKGROUP_SIZE, WORKGROUP_SIZE],
+  return compute(
+    (kernel as any)(
+      texture(source) as unknown as Node,
+      storageTexture(target).toWriteOnly() as unknown as Node,
+      instanceIndex,
+      uintUniform(resolution),
+      uintUniform(stage),
+      uintUniform(horizontal ? 1 : 0),
+    ) as Node,
+    resolution * resolution,
+    [64],
   );
 }
 

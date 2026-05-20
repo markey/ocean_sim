@@ -1,17 +1,10 @@
 import * as THREE from 'three/webgpu';
-import { Fn, attributeArray, compute, globalId, ivec2, instanceIndex, storageTexture, textureStore, uniform, wgslFn } from 'three/tsl';
+import { Fn, attributeArray, compute, ivec2, instanceIndex, storage, storageTexture, texture, textureStore, uniform, wgslFn } from 'three/tsl';
 import type Node from 'three/src/nodes/core/Node.js';
 import type ComputeNode from 'three/src/nodes/gpgpu/ComputeNode.js';
 import { GpuFFT } from '../fft/GpuFFT';
 import { createInitialSpectrum } from '../spectrum/phillips';
 import type { SpectrumParameters } from '../spectrum/types';
-
-const WORKGROUP_SIZE = 8;
-const compute2D = compute as unknown as (
-  node: Node,
-  dispatchSize: number[],
-  workgroupSize?: number[],
-) => ComputeNode;
 
 function uintUniform(value: number): Node {
   return uniform(value, 'uint' as 'float') as unknown as Node;
@@ -25,7 +18,7 @@ export type OceanSimulationParameters = SpectrumParameters & {
 type EvolveKernelParams = {
   h0: Node;
   target: Node;
-  id: typeof globalId;
+  index: typeof instanceIndex;
   time: Node;
   resolution: Node;
   patchSize: Node;
@@ -35,29 +28,30 @@ type EvolveKernelParams = {
 type RealKernelParams = {
   source: Node;
   target: Node;
-  id: typeof globalId;
+  heights: Node;
+  index: typeof instanceIndex;
   resolution: Node;
 };
 
 const evolveSpectrumKernel = wgslFn<EvolveKernelParams>(`
 fn evolveSpectrum(
-  h0: texture_storage_2d<rgba32float, read>,
+  h0: texture_2d<f32>,
   target: texture_storage_2d<rgba32float, write>,
-  id: vec3<u32>,
+  index: u32,
   time: f32,
   resolution: u32,
   patchSize: f32,
   gravity: f32
 ) -> void {
-  let x = id.x;
-  let y = id.y;
+  let x = index % resolution;
+  let y = index / resolution;
 
   if (x >= resolution || y >= resolution) {
     return;
   }
 
   let coord = vec2<i32>(i32(x), i32(y));
-  let source = textureLoad(h0, coord);
+  let source = textureLoad(h0, coord, 0);
   let centered = vec2<f32>(f32(x), f32(y)) - vec2<f32>(f32(resolution) * 0.5);
   let waveNumber = centered * (6.28318530718 / patchSize);
   let kLength = length(waveNumber);
@@ -81,24 +75,27 @@ fn evolveSpectrum(
 
 const complexToHeightKernel = wgslFn<RealKernelParams>(`
 fn complexToHeight(
-  source: texture_storage_2d<rgba32float, read>,
+  source: texture_2d<f32>,
   target: texture_storage_2d<rgba32float, write>,
-  id: vec3<u32>,
+  heights: ptr<storage, array<vec4<f32>>, read_write>,
+  index: u32,
   resolution: u32
 ) -> void {
-  let x = id.x;
-  let y = id.y;
+  let x = index % resolution;
+  let y = index / resolution;
 
   if (x >= resolution || y >= resolution) {
     return;
   }
 
   let coord = vec2<i32>(i32(x), i32(y));
-  let value = textureLoad(source, coord).x;
+  let value = textureLoad(source, coord, 0).x;
   let checker = select(-1.0, 1.0, ((x + y) & 1u) == 0u);
   // Keep Milestone 1's debug output visibly displaced. Physical amplitude
   // calibration can divide by resolution^2 once normals/choppiness land.
-  let normalized = value * checker;
+  let normalized = value * checker / f32(resolution * resolution);
+  let index = y * resolution + x;
+  heights[index] = vec4<f32>(normalized, 0.0, 0.0, 1.0);
 
   textureStore(target, coord, vec4<f32>(normalized, normalized, normalized, 1.0));
 }
@@ -119,12 +116,13 @@ function createFloatStorageTexture(resolution: number): THREE.StorageTexture {
 
 export class OceanSimulation {
   readonly heightTexture: THREE.StorageTexture;
+  readonly heightBuffer: THREE.StorageBufferAttribute;
   readonly spectrumTexture: THREE.StorageTexture;
   readonly parameters: OceanSimulationParameters;
 
   private readonly h0Texture: THREE.StorageTexture;
   private readonly evolvedSpectrumTexture: THREE.StorageTexture;
-  private readonly spatialSpectrumTexture: THREE.StorageTexture;
+  readonly spatialSpectrumTexture: THREE.StorageTexture;
   private readonly fft: GpuFFT;
   private readonly fftPing: THREE.StorageTexture;
   private readonly fftPong: THREE.StorageTexture;
@@ -149,6 +147,7 @@ export class OceanSimulation {
     this.evolvedSpectrumTexture = this.spectrumTexture;
     this.spatialSpectrumTexture = createFloatStorageTexture(resolution);
     this.heightTexture = createFloatStorageTexture(resolution);
+    this.heightBuffer = new THREE.StorageBufferAttribute(vertexCount, 4);
     this.fftPing = createFloatStorageTexture(resolution);
     this.fftPong = createFloatStorageTexture(resolution);
     this.fft = new GpuFFT(resolution, this.fftPing, this.fftPong);
@@ -201,6 +200,7 @@ export class OceanSimulation {
   private uploadSpectrumData(parameters: SpectrumParameters): void {
     const spectrum = createInitialSpectrum(parameters);
     (this.h0Buffer.value.array as Float32Array).set(spectrum.data);
+    this.h0Buffer.value.needsUpdate = true;
   }
 
   private createUploadH0Node(): ComputeNode {
@@ -221,21 +221,18 @@ export class OceanSimulation {
   }
 
   private createEvolveNode(): ComputeNode {
-    return compute2D(
-      evolveSpectrumKernel({
-        h0: storageTexture(this.h0Texture).toReadOnly() as unknown as Node,
-        target: storageTexture(this.evolvedSpectrumTexture).toWriteOnly() as unknown as Node,
-        id: globalId,
-        time: this.timeUniform as unknown as Node,
-        resolution: uintUniform(this.parameters.resolution),
-        patchSize: uniform(this.parameters.patchSize) as unknown as Node,
-        gravity: uniform(this.parameters.gravity) as unknown as Node,
-      }),
-      [
-        this.parameters.resolution / WORKGROUP_SIZE,
-        this.parameters.resolution / WORKGROUP_SIZE,
-      ],
-      [WORKGROUP_SIZE, WORKGROUP_SIZE],
+    return compute(
+      (evolveSpectrumKernel as any)(
+        texture(this.h0Texture) as unknown as Node,
+        storageTexture(this.evolvedSpectrumTexture).toWriteOnly() as unknown as Node,
+        instanceIndex,
+        this.timeUniform as unknown as Node,
+        uintUniform(this.parameters.resolution),
+        uniform(this.parameters.patchSize) as unknown as Node,
+        uniform(this.parameters.gravity) as unknown as Node,
+      ) as Node,
+      this.parameters.resolution * this.parameters.resolution,
+      [64],
     );
   }
 
@@ -243,18 +240,16 @@ export class OceanSimulation {
     source: THREE.Texture,
     target: THREE.StorageTexture,
   ): ComputeNode {
-    return compute2D(
-      complexToHeightKernel({
-        source: storageTexture(source).toReadOnly() as unknown as Node,
-        target: storageTexture(target).toWriteOnly() as unknown as Node,
-        id: globalId,
-        resolution: uintUniform(this.parameters.resolution),
-      }),
-      [
-        this.parameters.resolution / WORKGROUP_SIZE,
-        this.parameters.resolution / WORKGROUP_SIZE,
-      ],
-      [WORKGROUP_SIZE, WORKGROUP_SIZE],
+    return compute(
+      (complexToHeightKernel as any)(
+        texture(source) as unknown as Node,
+        storageTexture(target).toWriteOnly() as unknown as Node,
+        storage(this.heightBuffer, 'vec4', this.parameters.resolution * this.parameters.resolution) as unknown as Node,
+        instanceIndex,
+        uintUniform(this.parameters.resolution),
+      ) as Node,
+      this.parameters.resolution * this.parameters.resolution,
+      [64],
     );
   }
 }
