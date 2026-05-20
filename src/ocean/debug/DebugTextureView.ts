@@ -1,18 +1,22 @@
 import * as THREE from 'three/webgpu';
 import { Fn, color, float, max, mix, saturate, texture, uniform, uv, vec3 } from 'three/tsl';
-import type { OceanSimulation } from '../simulation/OceanSimulation';
-
+import type { CascadeId } from '../simulation/cascadeConfig';
+import type { OceanCascadeSystem } from '../simulation/OceanCascadeSystem';
 export type DebugTextureMode = 'off' | 'height' | 'displacement' | 'normal' | 'jacobian';
+export type DebugCascadeTarget = 'combined' | CascadeId;
 
 export class DebugTextureView {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshBasicNodeMaterial;
   private readonly modeUniform = uniform(0);
+  private readonly surfaceUniform = uniform(0);
   private mode: DebugTextureMode = 'off';
+  private cascadeTarget: DebugCascadeTarget = 'combined';
 
-  constructor(simulation: OceanSimulation) {
+  constructor(cascadeSystem: OceanCascadeSystem) {
     const geometry = new THREE.PlaneGeometry(2, 2);
     const modeUniform = this.modeUniform;
+    const surfaceUniform = this.surfaceUniform;
 
     this.material = new THREE.MeshBasicNodeMaterial({
       depthTest: false,
@@ -23,10 +27,63 @@ export class DebugTextureView {
 
     this.material.colorNode = Fn(() => {
       const sampleUv = uv();
-      const heightSample = texture(simulation.heightDataTexture, sampleUv).x;
-      const displacementSample = texture(simulation.displacementDataTexture, sampleUv);
-      const normalSample = texture(simulation.normalDataTexture, sampleUv).xyz.mul(2).sub(1);
-      const jacobianSample = texture(simulation.jacobianDataTexture, sampleUv);
+      const heightTex = texture(cascadeSystem.heightDataTexture, sampleUv);
+      const displacementTex = texture(cascadeSystem.displacementDataTexture, sampleUv);
+      const normalTex = texture(cascadeSystem.normalDataTexture, sampleUv);
+      const jacobianTex = texture(cascadeSystem.jacobianDataTexture, sampleUv);
+
+      const swellHeight = texture(cascadeSystem.cascades.swell.heightDataTexture, sampleUv).x;
+      const midHeight = texture(cascadeSystem.cascades.mid.heightDataTexture, sampleUv).x;
+      const detailHeight = texture(cascadeSystem.cascades.detail.heightDataTexture, sampleUv).x;
+
+      const swellDisplacement = texture(
+        cascadeSystem.cascades.swell.displacementDataTexture,
+        sampleUv,
+      );
+      const midDisplacement = texture(
+        cascadeSystem.cascades.mid.displacementDataTexture,
+        sampleUv,
+      );
+      const detailDisplacement = texture(
+        cascadeSystem.cascades.detail.displacementDataTexture,
+        sampleUv,
+      );
+
+      const swellNormal = texture(cascadeSystem.cascades.swell.normalDataTexture, sampleUv)
+        .xyz.mul(2)
+        .sub(1);
+      const midNormal = texture(cascadeSystem.cascades.mid.normalDataTexture, sampleUv)
+        .xyz.mul(2)
+        .sub(1);
+      const detailNormal = texture(cascadeSystem.cascades.detail.normalDataTexture, sampleUv)
+        .xyz.mul(2)
+        .sub(1);
+
+      const swellJacobian = texture(cascadeSystem.cascades.swell.jacobianDataTexture, sampleUv);
+      const midJacobian = texture(cascadeSystem.cascades.mid.jacobianDataTexture, sampleUv);
+      const detailJacobian = texture(cascadeSystem.cascades.detail.jacobianDataTexture, sampleUv);
+
+      const heightSample = surfaceUniform
+        .equal(1)
+        .select(swellHeight, surfaceUniform.equal(2).select(midHeight, surfaceUniform.equal(3).select(detailHeight, heightTex.x)));
+      const displacementSample = surfaceUniform
+        .equal(1)
+        .select(
+          swellDisplacement,
+          surfaceUniform.equal(2).select(midDisplacement, surfaceUniform.equal(3).select(detailDisplacement, displacementTex)),
+        );
+      const normalSample = surfaceUniform
+        .equal(1)
+        .select(
+          swellNormal,
+          surfaceUniform.equal(2).select(midNormal, surfaceUniform.equal(3).select(detailNormal, normalTex.xyz.mul(2).sub(1))),
+        );
+      const jacobianSample = surfaceUniform
+        .equal(1)
+        .select(
+          swellJacobian,
+          surfaceUniform.equal(2).select(midJacobian, surfaceUniform.equal(3).select(detailJacobian, jacobianTex)),
+        );
 
       const heightView = vec3(saturate(heightSample.mul(0.002).add(0.5)));
       const displacementView = displacementSample.xyz.mul(0.35).add(0.5);
@@ -68,8 +125,18 @@ export class DebugTextureView {
               : 0;
   }
 
+  setCascadeTarget(target: DebugCascadeTarget): void {
+    this.cascadeTarget = target;
+    this.surfaceUniform.value =
+      target === 'swell' ? 1 : target === 'mid' ? 2 : target === 'detail' ? 3 : 0;
+  }
+
   getMode(): DebugTextureMode {
     return this.mode;
+  }
+
+  getCascadeTarget(): DebugCascadeTarget {
+    return this.cascadeTarget;
   }
 
   updateLayout(camera: THREE.Camera, width: number, height: number): void {

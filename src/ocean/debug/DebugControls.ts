@@ -1,14 +1,21 @@
 import GUI from 'lil-gui';
 import { OCEAN_PRESETS, OCEAN_PRESET_IDS } from '../spectrum/presets';
 import type { OceanPresetId } from '../spectrum/types';
-import type { OceanSimulation, OceanSimulationParameters } from '../simulation/OceanSimulation';
+import {
+  CASCADE_IDS,
+  cascadeAmplitudesFromPreset,
+  type CascadeId,
+  type OceanCascadeSystemParameters,
+} from '../simulation/cascadeConfig';
+import type { OceanCascadeSystem } from '../simulation/OceanCascadeSystem';
 import type { WaterMesh } from '../rendering/WaterMesh';
-import type { DebugTextureMode, DebugTextureView } from './DebugTextureView';
+import type { DebugCascadeTarget, DebugTextureMode, DebugTextureView } from './DebugTextureView';
 
-type DebugGuiState = OceanSimulationParameters & {
+type DebugGuiState = OceanCascadeSystemParameters & {
   windDirectionDegrees: number;
   preset: OceanPresetId;
   debugView: DebugTextureMode;
+  debugCascade: DebugCascadeTarget;
 };
 
 function refreshGuiDisplays(gui: GUI): void {
@@ -21,29 +28,29 @@ export class DebugControls {
   private readonly state: DebugGuiState;
 
   constructor(
-    parameters: OceanSimulationParameters,
-    simulation: OceanSimulation,
+    parameters: OceanCascadeSystemParameters,
+    cascadeSystem: OceanCascadeSystem,
     water: WaterMesh,
     debugView: DebugTextureView,
   ) {
     this.gui = new GUI({ title: 'Spectral Ocean' });
     this.state = {
       ...parameters,
-      // Demo params store wind direction in degrees; simulation stores radians.
-      windDirectionDegrees:
-        parameters.windDirection <= Math.PI * 2
-          ? (parameters.windDirection * 180) / Math.PI
-          : parameters.windDirection,
+      cascades: {
+        swell: { ...parameters.cascades.swell },
+        mid: { ...parameters.cascades.mid },
+        detail: { ...parameters.cascades.detail },
+      },
+      windDirectionDegrees: (parameters.windDirection * 180) / Math.PI,
       preset: 'windySea',
       debugView: 'off',
+      debugCascade: 'combined',
     };
 
-    const syncSpectrum = () => {
-      simulation.setParameters({
-        amplitude: this.state.amplitude,
-        windDirection: (this.state.windDirectionDegrees * Math.PI) / 180,
+    const syncGlobalSpectrum = () => {
+      cascadeSystem.setParameters({
         windSpeed: this.state.windSpeed,
-        smallWaveDamping: this.state.smallWaveDamping,
+        windDirection: (this.state.windDirectionDegrees * Math.PI) / 180,
         spectrumModel: this.state.spectrumModel,
         fetch: this.state.fetch,
         peakEnhancement: this.state.peakEnhancement,
@@ -62,71 +69,139 @@ export class DebugControls {
       .onChange((presetId: OceanPresetId) => {
         const preset = OCEAN_PRESETS[presetId];
         this.state.spectrumModel = preset.spectrumModel;
-        this.state.amplitude = preset.amplitude;
         this.state.windSpeed = preset.windSpeed;
         this.state.windDirectionDegrees = preset.windDirection;
         this.state.fetch = preset.fetch;
         this.state.peakEnhancement = preset.peakEnhancement;
         this.state.directionalSpread = preset.directionalSpread;
-        this.state.smallWaveDamping = preset.smallWaveDamping;
-        this.state.choppiness = preset.choppiness;
-        this.state.heightScale = preset.heightScale;
         this.state.timeScale = preset.timeScale;
+        const amplitudes = cascadeAmplitudesFromPreset(preset.amplitude);
+        this.state.cascades.swell.amplitude = amplitudes.swell;
+        this.state.cascades.mid.amplitude = amplitudes.mid;
+        this.state.cascades.detail.amplitude = amplitudes.detail;
+        this.state.cascades.mid.choppiness = preset.choppiness;
+        this.state.cascades.mid.heightScale = preset.heightScale;
+        this.state.cascades.mid.smallWaveDamping = preset.smallWaveDamping;
+        this.state.cascades.swell.choppiness = preset.choppiness * 0.6;
+        this.state.cascades.swell.heightScale = preset.heightScale;
+        this.state.cascades.swell.smallWaveDamping = preset.smallWaveDamping * 1.2;
+        this.state.cascades.detail.choppiness = Math.min(1, preset.choppiness * 0.9);
+        this.state.cascades.detail.heightScale = preset.heightScale;
+        this.state.cascades.detail.smallWaveDamping = preset.smallWaveDamping * 1.5;
         refreshGuiDisplays(this.gui);
         water.setHeightScale(preset.heightScale);
-        simulation.setParameters({
-          spectrumModel: preset.spectrumModel,
-          amplitude: preset.amplitude,
-          windSpeed: preset.windSpeed,
-          windDirection: (preset.windDirection * Math.PI) / 180,
-          fetch: preset.fetch,
-          peakEnhancement: preset.peakEnhancement,
-          directionalSpread: preset.directionalSpread,
-          smallWaveDamping: preset.smallWaveDamping,
-          choppiness: preset.choppiness,
-          heightScale: preset.heightScale,
-          timeScale: preset.timeScale,
-          seed: Date.now(),
-        });
+        cascadeSystem.applyPreset(preset, (preset.windDirection * Math.PI) / 180);
       });
 
-    const spectrumFolder = this.gui.addFolder('Spectrum');
+    const spectrumFolder = this.gui.addFolder('Global spectrum');
     spectrumFolder
       .add(this.state, 'spectrumModel', { Phillips: 'phillips', JONSWAP: 'jonswap' })
       .name('Model')
-      .onFinishChange(syncSpectrum);
-    spectrumFolder.add(this.state, 'amplitude', 0.0001, 0.005, 0.0001).name('Amplitude').decimals(4).onFinishChange(syncSpectrum);
-    spectrumFolder.add(this.state, 'windSpeed', 1, 40, 0.1).name('Wind speed').decimals(1).onFinishChange(syncSpectrum);
+      .onFinishChange(syncGlobalSpectrum);
+    spectrumFolder
+      .add(this.state, 'windSpeed', 1, 40, 0.1)
+      .name('Wind speed')
+      .decimals(1)
+      .onFinishChange(syncGlobalSpectrum);
     spectrumFolder
       .add(this.state, 'windDirectionDegrees', 0, 360, 1)
       .name('Wind direction')
       .decimals(0)
-      .onFinishChange(syncSpectrum);
-    spectrumFolder.add(this.state, 'fetch', 10_000, 1_000_000, 1000).name('Fetch (m)').decimals(0).onFinishChange(syncSpectrum);
-    spectrumFolder.add(this.state, 'peakEnhancement', 1, 6, 0.1).name('Peak γ').decimals(1).onFinishChange(syncSpectrum);
-    spectrumFolder.add(this.state, 'directionalSpread', 1, 16, 0.25).name('Spread s').decimals(2).onFinishChange(syncSpectrum);
+      .onFinishChange(syncGlobalSpectrum);
     spectrumFolder
-      .add(this.state, 'smallWaveDamping', 0.001, 0.1, 0.001)
-      .name('Tiny-wave damping')
-      .decimals(3)
-      .onFinishChange(syncSpectrum);
+      .add(this.state, 'fetch', 10_000, 1_000_000, 1000)
+      .name('Fetch (m)')
+      .decimals(0)
+      .onFinishChange(syncGlobalSpectrum);
+    spectrumFolder
+      .add(this.state, 'peakEnhancement', 1, 6, 0.1)
+      .name('Peak γ')
+      .decimals(1)
+      .onFinishChange(syncGlobalSpectrum);
+    spectrumFolder
+      .add(this.state, 'directionalSpread', 1, 16, 0.25)
+      .name('Spread s')
+      .decimals(2)
+      .onFinishChange(syncGlobalSpectrum);
 
-    this.gui.add(this.state, 'timeScale', 0, 4, 0.01).name('Time scale').decimals(2).onChange((value: number) => {
-      simulation.setParameters({ timeScale: value });
-    });
     this.gui
-      .add(this.state, 'heightScale', 0.5, 2, 0.05)
-      .name('Height scale')
+      .add(this.state, 'timeScale', 0, 4, 0.01)
+      .name('Time scale')
       .decimals(2)
       .onChange((value: number) => {
-        simulation.setParameters({ heightScale: value });
-        water.setHeightScale(value);
+        cascadeSystem.setParameters({ timeScale: value });
       });
-    this.gui.add(this.state, 'choppiness', 0, 1.5, 0.01).name('Choppiness').decimals(2).onChange((value: number) => {
-      simulation.setParameters({ choppiness: value });
-    });
+
+    const addCascadeFolder = (id: CascadeId) => {
+      const cascade = this.state.cascades[id];
+      const folder = this.gui.addFolder(cascade.label);
+
+      folder.add(cascade, 'enabled').name('Enabled').onChange(() => {
+        cascadeSystem.setCascadeParameters(id, { enabled: cascade.enabled });
+      });
+      folder
+        .add(cascade, 'patchSize', 16, 1200, 1)
+        .name('Length scale (m)')
+        .decimals(0)
+        .onFinishChange(() => {
+          cascadeSystem.setCascadeParameters(id, { patchSize: cascade.patchSize });
+        });
+      folder
+        .add(cascade, 'amplitude', 0.00005, 0.005, 0.00005)
+        .name('Amplitude')
+        .decimals(5)
+        .onFinishChange(() => {
+          cascadeSystem.setCascadeParameters(id, { amplitude: cascade.amplitude });
+        });
+      folder
+        .add(cascade, 'windInfluence', 0, 2, 0.05)
+        .name('Wind influence')
+        .decimals(2)
+        .onFinishChange(() => {
+          cascadeSystem.setCascadeParameters(id, { windInfluence: cascade.windInfluence });
+        });
+      folder
+        .add(cascade, 'choppiness', 0, 1.5, 0.01)
+        .name('Choppiness')
+        .decimals(2)
+        .onChange(() => {
+          cascadeSystem.setCascadeParameters(id, { choppiness: cascade.choppiness });
+        });
+      folder
+        .add(cascade, 'heightScale', 0.25, 2.5, 0.05)
+        .name('Height scale')
+        .decimals(2)
+        .onChange((value: number) => {
+          cascadeSystem.setCascadeParameters(id, { heightScale: value });
+          if (id === 'mid') {
+            water.setHeightScale(value);
+          }
+        });
+      folder
+        .add(cascade, 'smallWaveDamping', 0.001, 0.12, 0.001)
+        .name('Tiny-wave damping')
+        .decimals(3)
+        .onFinishChange(() => {
+          cascadeSystem.setCascadeParameters(id, { smallWaveDamping: cascade.smallWaveDamping });
+        });
+    };
+
+    for (const id of CASCADE_IDS) {
+      addCascadeFolder(id);
+    }
 
     const debugFolder = this.gui.addFolder('Debug views');
+    debugFolder
+      .add(this.state, 'debugCascade', {
+        Combined: 'combined',
+        Swell: 'swell',
+        'Mid waves': 'mid',
+        Ripples: 'detail',
+      })
+      .name('Cascade')
+      .onChange((target: DebugCascadeTarget) => {
+        debugView.setCascadeTarget(target);
+      });
     debugFolder
       .add(this.state, 'debugView', {
         Off: 'off',
@@ -140,7 +215,7 @@ export class DebugControls {
         debugView.setMode(mode);
       });
 
-    water.setHeightScale(this.state.heightScale);
+    water.setHeightScale(this.state.cascades.mid.heightScale);
   }
 
   dispose(): void {

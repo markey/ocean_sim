@@ -11,9 +11,9 @@ export const REFERENCE_SPECTRUM_AMPLITUDE = 0.0012;
 
 /**
  * Target peak crest height in meters at heightScale = 1.0.
- * Calibrated offline (scripts/calibrate-height.ts); tuned for visible seas on a 220 m patch.
+ * Calibrated offline (scripts/calibrate-height.ts).
  */
-export const TARGET_PEAK_HEIGHT_METERS = 10;
+export const TARGET_PEAK_HEIGHT_METERS = 3.5;
 
 /**
  * FFT → world height (meters) before the height-scale slider.

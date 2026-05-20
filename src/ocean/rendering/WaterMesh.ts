@@ -16,17 +16,17 @@ import {
   uv,
   vec3,
 } from 'three/tsl';
-import type { OceanSimulation } from '../simulation/OceanSimulation';
+import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
 
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshStandardNodeMaterial;
 
-  constructor(simulation: OceanSimulation) {
-    const resolution = simulation.parameters.resolution;
+  constructor(surface: OceanSurfaceProvider) {
+    const resolution = surface.parameters.resolution;
     const geometry = new THREE.PlaneGeometry(
-      simulation.parameters.patchSize,
-      simulation.parameters.patchSize,
+      surface.parameters.patchSize,
+      surface.parameters.patchSize,
       resolution - 1,
       resolution - 1,
     );
@@ -38,7 +38,7 @@ export class WaterMesh {
     });
 
     this.material.positionNode = Fn(() => {
-      const displacement = texture(simulation.displacementDataTexture, uv());
+      const displacement = texture(surface.displacementDataTexture, uv());
       const horizontalX = displacement.x;
       const height = displacement.y;
       const horizontalZ = displacement.z;
@@ -47,12 +47,12 @@ export class WaterMesh {
     })();
 
     this.material.normalNode = Fn(() => {
-      const worldNormal = texture(simulation.normalDataTexture, uv()).xyz.mul(2).sub(1).normalize();
+      const worldNormal = texture(surface.normalDataTexture, uv()).xyz.mul(2).sub(1).normalize();
       return vec3(worldNormal.x, worldNormal.z.negate(), worldNormal.y).normalize();
     })();
 
     this.material.colorNode = Fn(() => {
-      const worldNormal = texture(simulation.normalDataTexture, uv()).xyz.mul(2).sub(1).normalize();
+      const worldNormal = texture(surface.normalDataTexture, uv()).xyz.mul(2).sub(1).normalize();
       const deepWater = color(0x0a5f73);
       const shallowWater = color(0x1f9db8);
       const skyReflection = color(0xb8dff0);
@@ -69,10 +69,10 @@ export class WaterMesh {
   }
 
   async update(_renderer: THREE.WebGPURenderer): Promise<void> {
-    // The simulation updates the DataTextures consumed by this material each frame.
+    // The cascade system updates the DataTextures consumed by this material each frame.
   }
 
-  /** Height scale is applied in OceanSimulation; kept for debug UI compatibility. */
+  /** Height scale is applied per cascade; kept for debug UI compatibility. */
   setHeightScale(_heightScale: number): void {}
 
   dispose(): void {

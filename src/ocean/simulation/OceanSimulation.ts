@@ -21,6 +21,11 @@ export type OceanSimulationParameters = SpectrumParameters & {
   choppiness: number;
 };
 
+export type OceanSimulationUpdateOptions = {
+  /** When false, skips normal/Jacobian (cascade bands; merged pass computes these). */
+  computeAuxiliaryFields?: boolean;
+};
+
 type EvolveKernelParams = {
   h0: Node;
   target: Node;
@@ -161,6 +166,9 @@ export class OceanSimulation {
   private readonly displacementPixels: Float32Array;
   private readonly normalPixels: Float32Array;
   private readonly jacobianPixels: Float32Array;
+  private readonly spatialHeights: Float32Array;
+  private readonly spatialDisplacementX: Float32Array;
+  private readonly spatialDisplacementZ: Float32Array;
   private readonly h0Texture: THREE.StorageTexture;
   private readonly evolvedSpectrumTexture: THREE.StorageTexture;
   readonly spatialSpectrumTexture: THREE.StorageTexture;
@@ -192,6 +200,9 @@ export class OceanSimulation {
     this.displacementPixels = new Float32Array(vertexCount * 4);
     this.normalPixels = new Float32Array(vertexCount * 4);
     this.jacobianPixels = new Float32Array(vertexCount * 4);
+    this.spatialHeights = new Float32Array(vertexCount);
+    this.spatialDisplacementX = new Float32Array(vertexCount);
+    this.spatialDisplacementZ = new Float32Array(vertexCount);
     this.heightDataTexture = createSimulationDataTexture(resolution, this.heightPixels);
     this.displacementDataTexture = createSimulationDataTexture(resolution, this.displacementPixels);
     this.normalDataTexture = createSimulationDataTexture(resolution, this.normalPixels);
@@ -238,8 +249,12 @@ export class OceanSimulation {
     }
   }
 
-  async update(renderer: THREE.WebGPURenderer, deltaSeconds: number): Promise<void> {
-    void renderer;
+  update(
+    _renderer: THREE.WebGPURenderer,
+    deltaSeconds: number,
+    options: OceanSimulationUpdateOptions = {},
+  ): void {
+    void _renderer;
     void this.fft;
     void this.evolveNode;
     void this.heightNode;
@@ -247,7 +262,16 @@ export class OceanSimulation {
     this.elapsed += deltaSeconds * this.parameters.timeScale;
     this.timeUniform.value = this.elapsed;
 
-    this.updateCpuSurfaceFields();
+    this.updateCpuSurfaceFields(options.computeAuxiliaryFields !== false);
+  }
+
+  /** @deprecated Use synchronous {@link update} instead. */
+  async updateAsync(
+    renderer: THREE.WebGPURenderer,
+    deltaSeconds: number,
+    options?: OceanSimulationUpdateOptions,
+  ): Promise<void> {
+    this.update(renderer, deltaSeconds, options);
   }
 
   dispose(): void {
@@ -270,7 +294,7 @@ export class OceanSimulation {
     this.h0Buffer.value.needsUpdate = true;
   }
 
-  private updateCpuSurfaceFields(): void {
+  private updateCpuSurfaceFields(computeAuxiliaryFields: boolean): void {
     const { resolution, patchSize, gravity, choppiness, heightScale } = this.parameters;
     const heightGain = cpuHeightGain(this.parameters);
     const twoPiOverLength = (2 * Math.PI) / patchSize;
@@ -327,10 +351,6 @@ export class OceanSimulation {
     this.inverseFft2D(this.cpuDisplacementX);
     this.inverseFft2D(this.cpuDisplacementZ);
 
-    const heights = new Float32Array(resolution * resolution);
-    const displacementsX = new Float32Array(resolution * resolution);
-    const displacementsZ = new Float32Array(resolution * resolution);
-
     for (let y = 0; y < resolution; y += 1) {
       for (let x = 0; x < resolution; x += 1) {
         const sourceIndex = (y * resolution + x) * 2;
@@ -342,9 +362,9 @@ export class OceanSimulation {
         const displacementX = (this.cpuDisplacementX[sourceIndex] ?? 0) * normalization;
         const displacementZ = (this.cpuDisplacementZ[sourceIndex] ?? 0) * normalization;
 
-        heights[gridIndex] = height;
-        displacementsX[gridIndex] = displacementX;
-        displacementsZ[gridIndex] = displacementZ;
+        this.spatialHeights[gridIndex] = height;
+        this.spatialDisplacementX[gridIndex] = displacementX;
+        this.spatialDisplacementZ[gridIndex] = displacementZ;
 
         this.heightPixels[pixelIndex] = height;
         this.heightPixels[pixelIndex + 1] = height;
@@ -358,26 +378,28 @@ export class OceanSimulation {
       }
     }
 
-    this.computeSurfaceNormals(
-      resolution,
-      patchSize,
-      heights,
-      displacementsX,
-      displacementsZ,
-      this.normalPixels,
-    );
-    this.computeJacobianField(
-      resolution,
-      patchSize,
-      displacementsX,
-      displacementsZ,
-      this.jacobianPixels,
-    );
+    if (computeAuxiliaryFields) {
+      this.computeSurfaceNormals(
+        resolution,
+        patchSize,
+        this.spatialHeights,
+        this.spatialDisplacementX,
+        this.spatialDisplacementZ,
+        this.normalPixels,
+      );
+      this.computeJacobianField(
+        resolution,
+        patchSize,
+        this.spatialDisplacementX,
+        this.spatialDisplacementZ,
+        this.jacobianPixels,
+      );
+      this.normalDataTexture.needsUpdate = true;
+      this.jacobianDataTexture.needsUpdate = true;
+    }
 
     this.heightDataTexture.needsUpdate = true;
     this.displacementDataTexture.needsUpdate = true;
-    this.normalDataTexture.needsUpdate = true;
-    this.jacobianDataTexture.needsUpdate = true;
   }
 
   /** Tessendorf displacement Jacobian: J = (1+∂Dx/∂x)(1+∂Dz/∂z) − (∂Dx/∂z)(∂Dz/∂x). */
