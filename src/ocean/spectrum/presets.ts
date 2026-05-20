@@ -1,0 +1,63 @@
+import type { OceanPreset, OceanPresetId } from './types';
+
+/** Named sea-state presets for quick comparison in the debug UI. */
+export const OCEAN_PRESETS: Record<OceanPresetId, OceanPreset> = {
+  calmSea: {
+    label: 'Calm sea',
+    spectrumModel: 'jonswap',
+    amplitude: 0.00045,
+    windSpeed: 6,
+    windDirection: 25,
+    fetch: 120_000,
+    peakEnhancement: 2.2,
+    directionalSpread: 10,
+    smallWaveDamping: 0.035,
+    choppiness: 0.55,
+    heightScale: 0.85,
+    timeScale: 0.75,
+  },
+  windySea: {
+    label: 'Windy sea',
+    spectrumModel: 'jonswap',
+    amplitude: 0.0012,
+    windSpeed: 16,
+    windDirection: 40,
+    fetch: 250_000,
+    peakEnhancement: 3.3,
+    directionalSpread: 6,
+    smallWaveDamping: 0.02,
+    choppiness: 1.2,
+    heightScale: 1,
+    timeScale: 1,
+  },
+  storm: {
+    label: 'Storm',
+    spectrumModel: 'jonswap',
+    amplitude: 0.0024,
+    windSpeed: 28,
+    windDirection: 55,
+    fetch: 180_000,
+    peakEnhancement: 4.2,
+    directionalSpread: 4,
+    smallWaveDamping: 0.015,
+    choppiness: 1.85,
+    heightScale: 1.35,
+    timeScale: 1.15,
+  },
+  longSwell: {
+    label: 'Long swell',
+    spectrumModel: 'jonswap',
+    amplitude: 0.0009,
+    windSpeed: 11,
+    windDirection: 15,
+    fetch: 800_000,
+    peakEnhancement: 1.8,
+    directionalSpread: 3.5,
+    smallWaveDamping: 0.028,
+    choppiness: 0.35,
+    heightScale: 1.1,
+    timeScale: 0.55,
+  },
+};
+
+export const OCEAN_PRESET_IDS = Object.keys(OCEAN_PRESETS) as OceanPresetId[];

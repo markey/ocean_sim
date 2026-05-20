@@ -2,6 +2,7 @@ import * as THREE from 'three/webgpu';
 import WebGPU from 'three/addons/capabilities/WebGPU.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DebugControls } from '../ocean/debug/DebugControls';
+import { DebugTextureView } from '../ocean/debug/DebugTextureView';
 import { WaterMesh } from '../ocean/rendering/WaterMesh';
 import { OceanSimulation, type OceanSimulationParameters } from '../ocean/simulation/OceanSimulation';
 import { StatsPanel } from './StatsPanel';
@@ -12,15 +13,19 @@ function createDefaultParameters(): OceanSimulationParameters {
   return {
     resolution: SIMULATION_RESOLUTION,
     patchSize: 220,
-    amplitude: 0.0014,
-    windSpeed: 18,
-    windDirection: 35,
+    amplitude: 0.0012,
+    windSpeed: 16,
+    windDirection: 40,
     gravity: 9.81,
     smallWaveDamping: 0.02,
     seed: 1337,
+    spectrumModel: 'jonswap',
+    fetch: 250_000,
+    peakEnhancement: 3.3,
+    directionalSpread: 6,
     heightScale: 1,
     timeScale: 1,
-    choppiness: 1.25,
+    choppiness: 1.2,
   };
 }
 
@@ -67,12 +72,14 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     windDirection: (parameters.windDirection * Math.PI) / 180,
   });
   const water = new WaterMesh(simulation);
+  const debugTextureView = new DebugTextureView(simulation);
   scene.add(water.mesh);
+  scene.add(debugTextureView.mesh);
 
   await simulation.init(renderer);
   await renderer.compileAsync(scene, camera);
 
-  const debugControls = new DebugControls(parameters, simulation, water);
+  const debugControls = new DebugControls(parameters, simulation, water, debugTextureView);
   const stats = new StatsPanel();
   root.appendChild(stats.element);
 
@@ -103,6 +110,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
         await simulation.update(renderer, deltaSeconds);
         await water.update(renderer);
         controls.update();
+        debugTextureView.updateLayout(camera, window.innerWidth, window.innerHeight);
         stats.update(deltaSeconds);
         renderer.render(scene, camera);
       } finally {
@@ -116,6 +124,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     window.removeEventListener('resize', resize);
     controls.dispose();
     debugControls.dispose();
+    debugTextureView.dispose();
     water.dispose();
     simulation.dispose();
     renderer.dispose();

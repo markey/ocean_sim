@@ -1,6 +1,6 @@
 # Spectral Ocean Simulation
 
-Milestone 2 extends the Tessendorf-style spectral ocean with horizontal choppy displacement, simulated surface normals, and basic normal-driven water shading. The demo generates an initial Phillips wave spectrum, evolves it over time, runs inverse FFT passes, and displaces a water mesh from the resulting height and horizontal displacement fields.
+Milestone 3 adds a JONSWAP wave spectrum, configurable directional spreading, named sea-state presets, and a fullscreen debug view for simulation textures (height, displacement, normals, and Jacobian compression). Milestone 2’s choppy displacement and normal-driven shading remain in place.
 
 ## Run
 
@@ -20,35 +20,36 @@ npm run build
 
 ## Architecture
 
-- `src/ocean/spectrum` creates deterministic Gaussian noise and a Phillips spectrum on the CPU. This is initialization data only.
-- `src/ocean/simulation` owns the update API and produces GPU-friendly `DataTexture`s for displacement and normals each frame.
-- `src/ocean/fft` implements the separable inverse FFT for future GPU-side use. Milestone 2 still evaluates the surface fields on the CPU while keeping the GPU FFT module in place.
-- `src/ocean/rendering` builds the water mesh and node material. Milestone 2 displaces vertices in X, Y, and Z from the simulated displacement texture and shades the surface with the simulated normal texture.
-- `src/demo` contains scene setup, WebGPU capability handling, orbit controls, debug GUI, and a small FPS panel.
+- `src/ocean/spectrum` — Phillips and JONSWAP initial spectra, Donelan-style directional spreading (`cos^(2s)(θ/2)`), and named presets (calm sea, windy sea, storm, long swell).
+- `src/ocean/simulation` — spectral time evolution, CPU inverse FFT, displacement/normal/Jacobian `DataTexture`s each frame.
+- `src/ocean/fft` — separable inverse FFT module for a future GPU-only path.
+- `src/ocean/rendering` — water mesh displaced and shaded from simulation textures.
+- `src/ocean/debug` — lil-gui controls and a camera-attached texture preview overlay.
+- `src/demo` — WebGPU scene, orbit camera, stats panel.
 
 ## GPU Data Flow
 
-1. CPU creates `h0(k)` and conjugate `h0(-k)` data in a float buffer.
-2. Each frame, the evolved complex height spectrum `H(k, t)` is evaluated with the deep-water dispersion relation.
-3. Separate inverse FFT passes produce spatial height `η`, horizontal displacement `Dx`, and `Dz`. The choppiness parameter scales the horizontal displacement spectrum as in Tessendorf's `-i * k/|k| * H(k)`.
-4. A normal texture is derived from the displaced surface using periodic central differences across the tile.
-5. The water material samples the displacement texture for vertex offset and the normal texture for lighting and a simple Fresnel tint.
+1. CPU builds `h0(k)` from the selected spectrum model (Phillips or JONSWAP) with directional spreading.
+2. Each frame, `H(k, t)` is evolved with the deep-water dispersion relation.
+3. Inverse FFT produces spatial height η and horizontal displacements `Dx`, `Dz` (choppiness scales the horizontal spectrum).
+4. Normals are derived from the displaced surface; the Tessendorf Jacobian `J` flags compression for future foam.
+5. The water material samples displacement and normals; the debug overlay can inspect any of the output textures.
 
-The compute kernels for spectrum upload, evolution, and height extraction remain available for a future GPU-only update path.
+Compute kernels for spectrum upload, evolution, and height extraction remain wired for a future GPU-only update path.
 
-## Milestone 2 Scope
+## Milestone 3 Scope
 
 Implemented:
 
-- Horizontal choppy displacement in X and Z with a debug choppiness control.
-- Simulated slope/normal texture derived from the displaced surface.
-- Water mesh displaced in all three axes instead of vertical-only height.
-- Basic normal-driven shading with a simple Fresnel sky tint.
+- JONSWAP spectrum with fetch-limited peak frequency and peak enhancement γ.
+- Directional spreading parameter `s` (narrower seas at higher values).
+- Presets: calm sea, windy sea, storm, long swell.
+- Debug texture view: height, displacement, normal, Jacobian (compression / foam potential).
+- Phillips spectrum retained and updated to use the same directional spreading model.
 
 Deferred to later milestones:
 
-- Jacobian and foam accumulation.
-- Multi-cascade spectrum.
-- JONSWAP spectrum and directional spreading presets.
-- Buoyancy sampling.
-- Full water shading with reflection/refraction/absorption.
+- Persistent foam accumulation and crest rendering (Milestone 5).
+- Multi-cascade spectrum (Milestone 4).
+- Buoyancy sampling (Milestone 6).
+- Full water shading with reflection/refraction/absorption (Milestone 7).

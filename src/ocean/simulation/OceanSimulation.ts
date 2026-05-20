@@ -3,7 +3,7 @@ import { Fn, attributeArray, compute, ivec2, instanceIndex, storage, storageText
 import type Node from 'three/src/nodes/core/Node.js';
 import type ComputeNode from 'three/src/nodes/gpgpu/ComputeNode.js';
 import { GpuFFT } from '../fft/GpuFFT';
-import { createInitialSpectrum } from '../spectrum/phillips';
+import { createInitialSpectrum } from '../spectrum/index';
 import type { SpectrumParameters } from '../spectrum/types';
 
 function uintUniform(value: number): Node {
@@ -143,6 +143,8 @@ export class OceanSimulation {
   readonly displacementDataTexture: THREE.DataTexture;
   /** RGBA encoded world-space normal in [0, 1]. */
   readonly normalDataTexture: THREE.DataTexture;
+  /** R = Jacobian determinant J; higher compression (foam potential) when J < 1. */
+  readonly jacobianDataTexture: THREE.DataTexture;
   /** Milestone 1 height-only texture kept for debug views. */
   readonly heightDataTexture: THREE.DataTexture;
   readonly heightTexture: THREE.StorageTexture;
@@ -158,6 +160,7 @@ export class OceanSimulation {
   private readonly heightPixels: Float32Array;
   private readonly displacementPixels: Float32Array;
   private readonly normalPixels: Float32Array;
+  private readonly jacobianPixels: Float32Array;
   private readonly h0Texture: THREE.StorageTexture;
   private readonly evolvedSpectrumTexture: THREE.StorageTexture;
   readonly spatialSpectrumTexture: THREE.StorageTexture;
@@ -188,9 +191,11 @@ export class OceanSimulation {
     this.heightPixels = new Float32Array(vertexCount * 4);
     this.displacementPixels = new Float32Array(vertexCount * 4);
     this.normalPixels = new Float32Array(vertexCount * 4);
+    this.jacobianPixels = new Float32Array(vertexCount * 4);
     this.heightDataTexture = createSimulationDataTexture(resolution, this.heightPixels);
     this.displacementDataTexture = createSimulationDataTexture(resolution, this.displacementPixels);
     this.normalDataTexture = createSimulationDataTexture(resolution, this.normalPixels);
+    this.jacobianDataTexture = createSimulationDataTexture(resolution, this.jacobianPixels);
     this.heightBuffer = new THREE.StorageBufferAttribute(vertexCount, 4);
     this.spectrumData = new Float32Array(vertexCount * 4);
     this.cpuSpectrum = new Float32Array(vertexCount * 2);
@@ -221,7 +226,12 @@ export class OceanSimulation {
       next.amplitude !== undefined ||
       next.windDirection !== undefined ||
       next.windSpeed !== undefined ||
-      next.smallWaveDamping !== undefined
+      next.smallWaveDamping !== undefined ||
+      next.spectrumModel !== undefined ||
+      next.fetch !== undefined ||
+      next.peakEnhancement !== undefined ||
+      next.directionalSpread !== undefined ||
+      next.seed !== undefined
     ) {
       this.uploadSpectrumData(this.parameters);
       void this.renderer?.computeAsync(this.uploadH0Node);
@@ -248,6 +258,7 @@ export class OceanSimulation {
     this.heightDataTexture.dispose();
     this.displacementDataTexture.dispose();
     this.normalDataTexture.dispose();
+    this.jacobianDataTexture.dispose();
     this.fftPing.dispose();
     this.fftPong.dispose();
   }
@@ -354,10 +365,56 @@ export class OceanSimulation {
       displacementsZ,
       this.normalPixels,
     );
+    this.computeJacobianField(
+      resolution,
+      patchSize,
+      displacementsX,
+      displacementsZ,
+      this.jacobianPixels,
+    );
 
     this.heightDataTexture.needsUpdate = true;
     this.displacementDataTexture.needsUpdate = true;
     this.normalDataTexture.needsUpdate = true;
+    this.jacobianDataTexture.needsUpdate = true;
+  }
+
+  /** Tessendorf displacement Jacobian: J = (1+∂Dx/∂x)(1+∂Dz/∂z) − (∂Dx/∂z)(∂Dz/∂x). */
+  private computeJacobianField(
+    resolution: number,
+    patchSize: number,
+    displacementsX: Float32Array,
+    displacementsZ: Float32Array,
+    target: Float32Array,
+  ): void {
+    const cellSize = patchSize / resolution;
+    const invTwoCell = 1 / (2 * cellSize);
+
+    const sample = (field: Float32Array, x: number, y: number): number => {
+      const wrappedX = ((x % resolution) + resolution) % resolution;
+      const wrappedY = ((y % resolution) + resolution) % resolution;
+      return field[wrappedY * resolution + wrappedX] ?? 0;
+    };
+
+    for (let y = 0; y < resolution; y += 1) {
+      for (let x = 0; x < resolution; x += 1) {
+        const pixelIndex = (y * resolution + x) * 4;
+        const dDxDx =
+          (sample(displacementsX, x + 1, y) - sample(displacementsX, x - 1, y)) * invTwoCell;
+        const dDxDz =
+          (sample(displacementsX, x, y + 1) - sample(displacementsX, x, y - 1)) * invTwoCell;
+        const dDzDx =
+          (sample(displacementsZ, x + 1, y) - sample(displacementsZ, x - 1, y)) * invTwoCell;
+        const dDzDz =
+          (sample(displacementsZ, x, y + 1) - sample(displacementsZ, x, y - 1)) * invTwoCell;
+        const jacobian = (1 + dDxDx) * (1 + dDzDz) - dDxDz * dDzDx;
+
+        target[pixelIndex] = jacobian;
+        target[pixelIndex + 1] = Math.max(0, 1 - jacobian);
+        target[pixelIndex + 2] = 0;
+        target[pixelIndex + 3] = 1;
+      }
+    }
   }
 
   private computeSurfaceNormals(

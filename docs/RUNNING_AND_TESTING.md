@@ -1,6 +1,6 @@
 # Running and Testing the Ocean Simulation
 
-This guide explains how to run the spectral ocean demo locally and verify that Milestone 1 behaves as expected.
+This guide explains how to run the spectral ocean demo locally and verify that the current milestone behaves as expected.
 
 ## Requirements
 
@@ -65,12 +65,19 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 
 | Control | What to verify |
 | --- | --- |
+| **Sea state preset** | Switches spectrum parameters and regenerates waves |
+| **Spectrum model** | Phillips vs JONSWAP changes wave energy distribution |
 | **Amplitude** | Larger values produce taller waves (spectrum re-initializes on release) |
 | **Wind speed** | Higher speed increases wave energy / roughness |
 | **Wind direction** | Wave orientation shifts toward the new wind heading |
+| **Fetch** | Longer fetch shifts energy toward longer waves (JONSWAP) |
+| **Peak γ** | Higher values sharpen the spectral peak |
+| **Spread s** | Higher values narrow waves along the wind direction |
 | **Time scale** | `0` freezes motion; values above `1` speed up animation |
 | **Height scale** | Scales visible displacement without regenerating the spectrum |
+| **Choppiness** | Increases horizontal displacement and sharper crests |
 | **Tiny-wave damping** | Higher values suppress small ripples |
+| **Debug texture** | Fullscreen overlay shows height, displacement, normal, or Jacobian |
 
 ### Performance
 

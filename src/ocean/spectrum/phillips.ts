@@ -1,4 +1,5 @@
 import { SeededRandom } from './random';
+import { directionalSpreading } from './directional';
 import type { SpectrumData, SpectrumParameters } from './types';
 
 const SQRT_HALF = Math.SQRT1_2;
@@ -14,22 +15,22 @@ function phillipsSpectrum(
     return 0;
   }
 
-  const kLength = Math.sqrt(kLengthSq);
-  const windX = Math.cos(parameters.windDirection);
-  const windZ = Math.sin(parameters.windDirection);
-  const kDotWind = (kx * windX + kz * windZ) / kLength;
   const windLength = Math.max(parameters.windSpeed, 0.001);
   const largestWave = (windLength * windLength) / parameters.gravity;
   const dampingLength = largestWave * parameters.smallWaveDamping;
-
-  const directionalTerm = kDotWind * kDotWind;
   const longWaveDamping = Math.exp(-1 / (kLengthSq * largestWave * largestWave));
   const tinyWaveDamping = Math.exp(-kLengthSq * dampingLength * dampingLength);
+  const directional = directionalSpreading(
+    kx,
+    kz,
+    parameters.windDirection,
+    parameters.directionalSpread,
+  );
 
   return (
     parameters.amplitude *
     longWaveDamping *
-    directionalTerm *
+    directional *
     tinyWaveDamping /
     (kLengthSq * kLengthSq)
   );
@@ -45,7 +46,7 @@ function spectrumSample(
   return [random.gaussian() * scale, random.gaussian() * scale];
 }
 
-export function createInitialSpectrum(parameters: SpectrumParameters): SpectrumData {
+export function createPhillipsInitialSpectrum(parameters: SpectrumParameters): SpectrumData {
   const { resolution, patchSize } = parameters;
   const random = new SeededRandom(parameters.seed);
   const data = new Float32Array(resolution * resolution * 4);
