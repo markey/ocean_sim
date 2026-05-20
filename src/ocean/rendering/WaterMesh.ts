@@ -13,20 +13,14 @@ import {
   pow,
   saturate,
   texture,
-  uniform,
   uv,
   vec3,
 } from 'three/tsl';
 import type { OceanSimulation } from '../simulation/OceanSimulation';
 
-// Maps slider 1.0 to unit display gain; horizontal displacement is not scaled.
-const HEIGHT_DISPLAY_GAIN = 1;
-
 export class WaterMesh {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshStandardNodeMaterial;
-
-  private readonly heightScaleUniform = uniform(1);
 
   constructor(simulation: OceanSimulation) {
     const resolution = simulation.parameters.resolution;
@@ -46,7 +40,7 @@ export class WaterMesh {
     this.material.positionNode = Fn(() => {
       const displacement = texture(simulation.displacementDataTexture, uv());
       const horizontalX = displacement.x;
-      const height = displacement.y.mul(this.heightScaleUniform);
+      const height = displacement.y;
       const horizontalZ = displacement.z;
       // Plane lies in local XY; after mesh rotation -PI/2 around X, local Z becomes world Y.
       return positionLocal.add(vec3(horizontalX, horizontalZ.negate(), height));
@@ -78,9 +72,8 @@ export class WaterMesh {
     // The simulation updates the DataTextures consumed by this material each frame.
   }
 
-  setHeightScale(heightScale: number): void {
-    this.heightScaleUniform.value = heightScale * HEIGHT_DISPLAY_GAIN;
-  }
+  /** Height scale is applied in OceanSimulation; kept for debug UI compatibility. */
+  setHeightScale(_heightScale: number): void {}
 
   dispose(): void {
     this.mesh.geometry.dispose();

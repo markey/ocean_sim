@@ -74,7 +74,8 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Peak γ** | Higher values sharpen the spectral peak |
 | **Spread s** | Higher values narrow waves along the wind direction |
 | **Time scale** | `0` freezes motion; values above `1` speed up animation |
-| **Height scale** | Scales visible displacement without regenerating the spectrum |
+| **Height scale** | `1.0` = calibrated (~10 m peaks on windy sea). Range `0.5`–`2` = calmer to rougher. Scales height only, not chop. |
+| **Amplitude** | Spectrum energy; also auto-scales wave height via calibration |
 | **Choppiness** | Increases horizontal displacement and sharper crests |
 | **Tiny-wave damping** | Higher values suppress small ripples |
 | **Debug texture** | Fullscreen overlay shows height, displacement, normal, or Jacobian |

@@ -23,9 +23,9 @@ function createDefaultParameters(): OceanSimulationParameters {
     fetch: 250_000,
     peakEnhancement: 3.3,
     directionalSpread: 6,
-    heightScale: 0.9,
+    heightScale: 1,
     timeScale: 1,
-    choppiness: 0,
+    choppiness: 0.4,
   };
 }
 

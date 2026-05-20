@@ -114,10 +114,14 @@ export class DebugControls {
     this.gui.add(this.state, 'timeScale', 0, 4, 0.01).name('Time scale').decimals(2).onChange((value: number) => {
       simulation.setParameters({ timeScale: value });
     });
-    this.gui.add(this.state, 'heightScale', 0, 1, 0.05).name('Height scale').decimals(2).onChange((value: number) => {
-      water.setHeightScale(value);
-      simulation.setParameters({ heightScale: value });
-    });
+    this.gui
+      .add(this.state, 'heightScale', 0.5, 2, 0.05)
+      .name('Height scale')
+      .decimals(2)
+      .onChange((value: number) => {
+        simulation.setParameters({ heightScale: value });
+        water.setHeightScale(value);
+      });
     this.gui.add(this.state, 'choppiness', 0, 1.5, 0.01).name('Choppiness').decimals(2).onChange((value: number) => {
       simulation.setParameters({ choppiness: value });
     });

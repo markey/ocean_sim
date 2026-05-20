@@ -5,15 +5,14 @@ import type ComputeNode from 'three/src/nodes/gpgpu/ComputeNode.js';
 import { GpuFFT } from '../fft/GpuFFT';
 import { createInitialSpectrum } from '../spectrum/index';
 import type { SpectrumParameters } from '../spectrum/types';
+import { cpuHeightGain } from './heightCalibration';
 
 function uintUniform(value: number): Node {
   return uniform(value, 'uint' as 'float') as unknown as Node;
 }
 
-// Converts FFT output to world-unit height (meters) before the height-scale slider.
-const CPU_HEIGHT_GAIN = 6;
-// Horizontal choppy displacement is scaled down — full Tessendorf lambda folds the mesh easily.
-const CHOPPINESS_DISPLACEMENT_GAIN = 0.08;
+// Scales horizontal chop separately so the choppiness slider does not fold the mesh.
+const CHOPPINESS_DISPLACEMENT_GAIN = 0.2;
 const MIN_WAVE_NUMBER = 1e-6;
 
 export type OceanSimulationParameters = SpectrumParameters & {
@@ -272,7 +271,8 @@ export class OceanSimulation {
   }
 
   private updateCpuSurfaceFields(): void {
-    const { resolution, patchSize, gravity, choppiness } = this.parameters;
+    const { resolution, patchSize, gravity, choppiness, heightScale } = this.parameters;
+    const heightGain = cpuHeightGain(this.parameters);
     const twoPiOverLength = (2 * Math.PI) / patchSize;
 
     for (let y = 0; y < resolution; y += 1) {
@@ -337,8 +337,8 @@ export class OceanSimulation {
         const pixelIndex = (y * resolution + x) * 4;
         const gridIndex = y * resolution + x;
         const checker = (x + y) % 2 === 0 ? 1 : -1;
-        const normalization = (checker * CPU_HEIGHT_GAIN) / (resolution * resolution);
-        const height = (this.cpuSpectrum[sourceIndex] ?? 0) * normalization;
+        const normalization = (checker * heightGain) / (resolution * resolution);
+        const height = (this.cpuSpectrum[sourceIndex] ?? 0) * normalization * heightScale;
         const displacementX = (this.cpuDisplacementX[sourceIndex] ?? 0) * normalization;
         const displacementZ = (this.cpuDisplacementZ[sourceIndex] ?? 0) * normalization;
 
