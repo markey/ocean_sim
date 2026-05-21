@@ -31,7 +31,7 @@ type DebugGuiState = OceanCascadeSystemParameters & {
   debugView: DebugTextureMode;
   debugCascade: DebugCascadeTarget;
   foam: FoamParameters & { renderStrength: number };
-  rendering: WaterRenderingParameters & OceanEnvironmentParameters;
+  rendering: WaterRenderingParameters & OceanEnvironmentParameters & { exposure: number };
   buoyancy: BuoyancyParameters & {
     sphereEnabled: boolean;
     boatEnabled: boolean;
@@ -41,6 +41,11 @@ type DebugGuiState = OceanCascadeSystemParameters & {
 export type BuoyancyDebugTargets = {
   sphere: FloatingSphere;
   boat: FloatingBoat;
+};
+
+export type BenchmarkDebugTargets = {
+  applyBenchmarkView: () => void;
+  setExposure: (exposure: number) => void;
 };
 
 function refreshGuiDisplays(gui: GUI): void {
@@ -60,6 +65,7 @@ export class DebugControls {
     debugView: DebugTextureView,
     buoyancyTargets?: BuoyancyDebugTargets,
     oceanEnvironment?: OceanEnvironment,
+    benchmarkTargets?: BenchmarkDebugTargets,
   ) {
     this.gui = new GUI({ title: 'Spectral Ocean' });
     this.state = {
@@ -70,13 +76,14 @@ export class DebugControls {
         detail: { ...parameters.cascades.detail },
       },
       windDirectionDegrees: (parameters.windDirection * 180) / Math.PI,
-      preset: 'windySea',
+      preset: 'openOcean',
       debugView: 'off',
       debugCascade: 'combined',
       foam: { ...DEFAULT_FOAM_PARAMETERS, renderStrength: 0.52 },
       rendering: {
         ...DEFAULT_WATER_RENDERING_PARAMETERS,
         ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,
+        exposure: 1.04,
       },
       buoyancy: {
         ...DEFAULT_BUOYANCY_PARAMETERS,
@@ -279,7 +286,40 @@ export class DebugControls {
       if (oceanEnvironment) {
         oceanEnvironment.setParameters(this.state.rendering);
       }
+      benchmarkTargets?.setExposure(this.state.rendering.exposure);
     };
+
+    const benchmarkFolder = this.gui.addFolder('Benchmark scene');
+    benchmarkFolder
+      .add(
+        {
+          applyView: () => {
+            benchmarkTargets?.applyBenchmarkView();
+          },
+        },
+        'applyView',
+      )
+      .name('Apply camera');
+    benchmarkFolder
+      .add(
+        {
+          applyPreset: () => {
+            this.state.preset = 'openOcean';
+            this.applyPreset(OCEAN_PRESETS.openOcean);
+            this.state.rendering.horizonHaze = 0.58;
+            this.state.rendering.sunAzimuthDegrees = 238;
+            this.state.rendering.sunElevationDegrees = 22;
+            this.state.rendering.sunIntensity = 3.15;
+            this.state.rendering.exposure = 1.04;
+            syncWaterRendering();
+            benchmarkTargets?.applyBenchmarkView();
+            refreshGuiDisplays(this.gui);
+          },
+        },
+        'applyPreset',
+      )
+      .name('Apply full preset');
+    benchmarkFolder.open();
 
     renderingFolder
       .add(this.state.rendering, 'fresnelStrength', 0, 1.5, 0.01)
@@ -309,6 +349,31 @@ export class DebugControls {
     renderingFolder
       .add(this.state.rendering, 'causticStrength', 0, 1.5, 0.01)
       .name('Caustics')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'sunAzimuthDegrees', 0, 360, 1)
+      .name('Sun azimuth')
+      .decimals(0)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'sunElevationDegrees', 2, 70, 1)
+      .name('Sun elevation')
+      .decimals(0)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'sunIntensity', 0.4, 6, 0.05)
+      .name('Sun intensity')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'horizonHaze', 0, 1, 0.01)
+      .name('Horizon haze')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'exposure', 0.45, 1.8, 0.01)
+      .name('Exposure')
       .decimals(2)
       .onChange(syncWaterRendering);
     renderingFolder

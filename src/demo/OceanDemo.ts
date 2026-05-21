@@ -22,34 +22,35 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   scene.background = new THREE.Color(0x8ab7c9);
 
   const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 2000);
-  camera.position.set(42, 22, 48);
+  camera.position.set(58, 12, 92);
 
   const renderer = new THREE.WebGPURenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.92;
+  renderer.toneMappingExposure = 1.04;
   root.appendChild(renderer.domElement);
 
   await renderer.init();
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.target.set(2, 2, 0);
+  controls.target.set(-28, 4.5, -56);
   controls.maxPolarAngle = Math.PI * 0.72;
   controls.minDistance = 12;
   controls.maxDistance = 280;
 
-  const sun = new THREE.DirectionalLight(0xfff7e6, 2.45);
-  sun.position.set(80, 120, 40);
+  const sun = new THREE.DirectionalLight(0xfff0d0, 3.15);
+  sun.position.set(-98, 60, -104);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xaedff2, 0x153640, 0.82));
+  const hemisphere = new THREE.HemisphereLight(0x8fb7e8, 0x18343b, 0.68);
+  scene.add(hemisphere);
 
   const parameters = createDefaultCascadeSystemParameters();
   const cascadeSystem = new OceanCascadeSystem(parameters);
   const water = new WaterMesh(cascadeSystem.getCombinedSurface());
-  const oceanEnvironment = new OceanEnvironment(scene);
+  const oceanEnvironment = new OceanEnvironment(scene, { sun, hemisphere });
   const debugTextureView = new DebugTextureView(cascadeSystem);
   const floatingSphere = new FloatingSphere();
   const floatingBoat = new FloatingBoat();
@@ -62,6 +63,12 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   water.update(renderer, cascadeSystem.getCombinedSurface());
   await renderer.compileAsync(scene, camera);
 
+  const applyBenchmarkView = () => {
+    camera.position.set(58, 12, 92);
+    controls.target.set(-28, 4.5, -56);
+    controls.update();
+  };
+
   const debugControls = new DebugControls(
     parameters,
     cascadeSystem,
@@ -69,7 +76,14 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     debugTextureView,
     { sphere: floatingSphere, boat: floatingBoat },
     oceanEnvironment,
+    {
+      applyBenchmarkView,
+      setExposure: (exposure: number) => {
+        renderer.toneMappingExposure = exposure;
+      },
+    },
   );
+  applyBenchmarkView();
   water.update(renderer, cascadeSystem.getCombinedSurface());
   const stats = new StatsPanel();
   root.appendChild(stats.element);

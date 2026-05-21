@@ -1,6 +1,6 @@
 # Spectral Ocean Simulation
 
-Milestone 7 adds the first visual ocean rendering pass on top of the existing spectral simulation: Fresnel reflection, screen-space refraction tinting, depth-based absorption, crest-biased subsurface color, sun sparkle, caustics on a simple seafloor, and an underwater atmosphere mode with fog and suspended particles. Milestone 6 buoyancy, Milestone 5 crest foam, Milestone 4 three-cascade spectral ocean, JONSWAP presets, and debug texture views remain.
+Milestone 8 adds a benchmark scene and lighting pass on top of the existing spectral simulation: a low waterline camera preset, cinematic open-ocean sea state, sky dome, visible sun disk, horizon haze, distant rock silhouettes, buoy scale cue, and GUI controls for sun angle, haze, exposure, and the benchmark camera. Milestone 7 water rendering, Milestone 6 buoyancy, Milestone 5 crest foam, Milestone 4 three-cascade spectral ocean, JONSWAP presets, and debug texture views remain.
 
 ## Run
 
@@ -26,7 +26,7 @@ npm run build
 - `src/ocean/foam` — persistent crest foam accumulation and decay (`FoamAccumulator`).
 - `src/ocean/buoyancy` — bilinear surface sampling API, floating sphere, and multi-point boat hull.
 - `src/ocean/fft` — separable inverse FFT module for a future GPU-only path.
-- `src/ocean/rendering` — water mesh displaced and shaded from combined cascade textures plus foam map; Milestone 7 water and environment visuals.
+- `src/ocean/rendering` — water mesh displaced and shaded from combined cascade textures plus foam map; Milestone 7 water visuals and Milestone 8 benchmark sky/horizon environment.
 - `src/ocean/debug` — lil-gui controls (global, per-cascade, foam, buoyancy) and a camera-attached texture preview.
 - `src/demo` — WebGPU scene, orbit camera, stats panel, floating bodies.
 
@@ -38,9 +38,19 @@ npm run build
 4. `FoamAccumulator` reads combined Jacobian compression, deposits foam where `1 − J` exceeds a threshold, and decays stored foam each frame.
 5. The water material samples merged displacement/normals and the foam texture, then layers Milestone 7 visual terms: Fresnel reflection, refracted viewport tint, absorption, subsurface scattering, sparkle, and foam.
 6. `OceanSurfaceSampler` reads the same combined CPU displacement/normal textures for buoyancy at arbitrary world XZ points.
-7. `OceanEnvironment` adds visual-only seafloor caustics and underwater fog/particles. These effects do not synthesize wave motion; the simulated spectral surface still drives the ocean shape.
+7. `OceanEnvironment` adds visual-only sky, sun, horizon silhouettes, seafloor caustics, and underwater fog/particles. These effects do not synthesize wave motion; the simulated spectral surface still drives the ocean shape.
 
 Compute kernels for spectrum upload and evolution remain wired per cascade for a future GPU-only update path.
+
+## Milestone 8 Benchmark
+
+Use the **Benchmark scene** GUI folder to return to the saved Water Pro-style comparison view:
+
+- **Apply camera** restores the low waterline camera.
+- **Apply full preset** restores the open-ocean sea state, lighting, haze, exposure, and camera.
+- The **Rendering** folder includes sun azimuth/elevation, sun intensity, horizon haze, and exposure controls.
+
+The benchmark scene targets atmosphere, scale, and lighting composition only. It does not replace the FFT/cascade simulation with decorative waves.
 
 ## Milestone 7 Scope
 

@@ -36,8 +36,28 @@ Open that URL in a WebGPU-capable browser. You should see:
 - An orbit camera (drag to rotate, scroll to zoom)
 - A **Spectral Ocean** debug panel (lil-gui)
 - An **FPS** readout in the corner
+- The Milestone 8 benchmark view: low camera, visible sky/sun, horizon haze, distant rock silhouettes, and a buoy scale cue
 
 The ocean should animate continuously. Waves evolve from the GPU spectral simulation and inverse FFT, not from procedural noise.
+
+### Codex desktop note
+
+When running this project from Codex automation on Windows, use the plain project command:
+
+```bash
+npm run dev
+```
+
+Do not wrap Vite in PowerShell `Start-Process` just to force a custom port. In this environment, `Start-Process` can return immediately without keeping the Vite child server alive, often with empty log files and no listening port. If a background launch is needed for browser testing, keep the same command (`npm run dev`) in a persistent shell/process and read the Vite URL from its output.
+
+## Benchmark screenshot view
+
+Milestone 8 adds a repeatable comparison view inspired by the Water Pro reference screenshot. In the **Benchmark scene** GUI folder:
+
+- **Apply camera** restores the saved low waterline camera.
+- **Apply full preset** restores the open-ocean sea state, lighting, haze, exposure, and saved camera.
+
+Use this view for before/after screenshots. The **Rendering** folder exposes sun azimuth, sun elevation, sun intensity, horizon haze, and exposure controls for small composition adjustments.
 
 ## Manual testing checklist
 
@@ -81,6 +101,8 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Debug texture** | PiP overlay shows height, displacement, normal, Jacobian, or accumulated foam |
 | **Foam** | Whitecaps build at crests where Jacobian compression exceeds threshold; decay and clear in the Foam folder |
 | **Buoyancy** | Orange sphere and brown boat ride waves; toggle, tune stiffness/damping, reset positions in the Buoyancy folder |
+| **Benchmark scene** | Restores the saved Milestone 8 camera and open-ocean lighting preset |
+| **Sun / haze / exposure** | Tunes the Milestone 8 sky, sun disk, horizon haze, and renderer exposure |
 
 ### Buoyancy (Milestone 6)
 
