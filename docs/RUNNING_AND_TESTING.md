@@ -37,6 +37,7 @@ Open that URL in a WebGPU-capable browser. You should see:
 - A **Spectral Ocean** debug panel (lil-gui)
 - An **FPS** readout in the corner
 - The Milestone 8 benchmark view: low camera, visible sky/sun, horizon haze, distant rock silhouettes, and a buoy scale cue
+- The Milestone 9 surface polish controls for water color, reflection, glitter, and foam
 
 The ocean should animate continuously. Waves evolve from the GPU spectral simulation and inverse FFT, not from procedural noise.
 
@@ -58,6 +59,16 @@ Milestone 8 adds a repeatable comparison view inspired by the Water Pro referenc
 - **Apply full preset** restores the open-ocean sea state, lighting, haze, exposure, and saved camera.
 
 Use this view for before/after screenshots. The **Rendering** folder exposes sun azimuth, sun elevation, sun intensity, horizon haze, and exposure controls for small composition adjustments.
+
+## Surface polish controls
+
+Milestone 9 adds a **Surface polish** GUI folder for material tuning:
+
+- **Foam blend**, **Foam contrast**, and **Foam light** tune the existing foam texture and Jacobian crest mask.
+- **Deep color**, **Shallow color**, **Reflection color**, **Subsurface color**, and **Foam color** tune the water palette.
+- **Sky reflection** and **Glitter sharpness** live in the **Rendering** folder with the other visual controls.
+
+These controls adjust shading only. The ocean shape, normals, sparkle mask, and crest foam still come from the spectral cascade outputs, not from decorative scrolling normal maps.
 
 ## Manual testing checklist
 
@@ -103,6 +114,7 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Buoyancy** | Orange sphere and brown boat ride waves; toggle, tune stiffness/damping, reset positions in the Buoyancy folder |
 | **Benchmark scene** | Restores the saved Milestone 8 camera and open-ocean lighting preset |
 | **Sun / haze / exposure** | Tunes the Milestone 8 sky, sun disk, horizon haze, and renderer exposure |
+| **Surface polish** | Tunes Milestone 9 water colors, sky reflection, glitter, and lighting-aware foam blend |
 
 ### Buoyancy (Milestone 6)
 

@@ -79,7 +79,10 @@ export class DebugControls {
       preset: 'openOcean',
       debugView: 'off',
       debugCascade: 'combined',
-      foam: { ...DEFAULT_FOAM_PARAMETERS, renderStrength: 0.52 },
+      foam: {
+        ...DEFAULT_FOAM_PARAMETERS,
+        renderStrength: DEFAULT_WATER_RENDERING_PARAMETERS.foamStrength,
+      },
       rendering: {
         ...DEFAULT_WATER_RENDERING_PARAMETERS,
         ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,
@@ -247,6 +250,7 @@ export class DebugControls {
     const foamFolder = this.gui.addFolder('Foam');
     const syncFoam = () => {
       const { renderStrength: _renderStrength, ...foamParams } = this.state.foam;
+      this.state.rendering.foamStrength = this.state.foam.renderStrength;
       cascadeSystem.setFoamParameters(foamParams);
       water.setFoamStrength(this.state.foam.renderStrength);
     };
@@ -311,6 +315,16 @@ export class DebugControls {
             this.state.rendering.sunElevationDegrees = 22;
             this.state.rendering.sunIntensity = 3.15;
             this.state.rendering.exposure = 1.04;
+            this.state.rendering.fresnelStrength = DEFAULT_WATER_RENDERING_PARAMETERS.fresnelStrength;
+            this.state.rendering.reflectionStrength =
+              DEFAULT_WATER_RENDERING_PARAMETERS.reflectionStrength;
+            this.state.rendering.sparkleStrength =
+              DEFAULT_WATER_RENDERING_PARAMETERS.sparkleStrength;
+            this.state.rendering.sparkleSharpness =
+              DEFAULT_WATER_RENDERING_PARAMETERS.sparkleSharpness;
+            this.state.rendering.foamStrength = DEFAULT_WATER_RENDERING_PARAMETERS.foamStrength;
+            this.state.rendering.foamContrast = DEFAULT_WATER_RENDERING_PARAMETERS.foamContrast;
+            this.state.rendering.foamBrightness = DEFAULT_WATER_RENDERING_PARAMETERS.foamBrightness;
             syncWaterRendering();
             benchmarkTargets?.applyBenchmarkView();
             refreshGuiDisplays(this.gui);
@@ -324,6 +338,11 @@ export class DebugControls {
     renderingFolder
       .add(this.state.rendering, 'fresnelStrength', 0, 1.5, 0.01)
       .name('Fresnel')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'reflectionStrength', 0, 1.5, 0.01)
+      .name('Sky reflection')
       .decimals(2)
       .onChange(syncWaterRendering);
     renderingFolder
@@ -344,6 +363,11 @@ export class DebugControls {
     renderingFolder
       .add(this.state.rendering, 'sparkleStrength', 0, 1.8, 0.01)
       .name('Sparkle')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'sparkleSharpness', 0, 1, 0.01)
+      .name('Glitter sharpness')
       .decimals(2)
       .onChange(syncWaterRendering);
     renderingFolder
@@ -397,6 +421,46 @@ export class DebugControls {
         this.state.rendering.underwaterMode = mode;
         syncWaterRendering();
       });
+
+    const surfacePolishFolder = this.gui.addFolder('Surface polish');
+    surfacePolishFolder
+      .add(this.state.rendering, 'foamStrength', 0, 1.5, 0.01)
+      .name('Foam blend')
+      .decimals(2)
+      .onChange((value: number) => {
+        this.state.foam.renderStrength = value;
+        syncWaterRendering();
+      });
+    surfacePolishFolder
+      .add(this.state.rendering, 'foamContrast', 0.45, 3, 0.01)
+      .name('Foam contrast')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .add(this.state.rendering, 'foamBrightness', 0.2, 1.6, 0.01)
+      .name('Foam light')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'deepWaterColor')
+      .name('Deep color')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'shallowWaterColor')
+      .name('Shallow color')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'skyReflectionColor')
+      .name('Reflection color')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'subsurfaceColor')
+      .name('Subsurface color')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'foamColor')
+      .name('Foam color')
+      .onChange(syncWaterRendering);
     syncWaterRendering();
 
     if (buoyancyTargets) {
