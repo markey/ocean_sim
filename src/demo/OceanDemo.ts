@@ -30,6 +30,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.04;
+  let pixelRatioCap = 2;
   root.appendChild(renderer.domElement);
 
   await renderer.init();
@@ -62,10 +63,28 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   await cascadeSystem.init(renderer);
   water.update(renderer, cascadeSystem.getCombinedSurface());
   await renderer.compileAsync(scene, camera);
+  const stats = new StatsPanel();
+  root.appendChild(stats.element);
+
+  const setRendererPixelRatioCap = (nextPixelRatioCap: number) => {
+    pixelRatioCap = nextPixelRatioCap;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, pixelRatioCap));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  };
 
   const applyBenchmarkView = () => {
     camera.position.set(58, 12, 92);
     controls.target.set(-28, 4.5, -56);
+    controls.update();
+  };
+  const applyUnderwaterView = () => {
+    camera.position.set(22, -10, 34);
+    controls.target.set(-12, -5, -34);
+    controls.update();
+  };
+  const applyOverview = () => {
+    camera.position.set(18, 72, 94);
+    controls.target.set(-18, 1.5, -20);
     controls.update();
   };
 
@@ -78,15 +97,19 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     oceanEnvironment,
     {
       applyBenchmarkView,
+      applyUnderwaterView,
+      applyOverview,
       setExposure: (exposure: number) => {
         renderer.toneMappingExposure = exposure;
+      },
+      setPixelRatioCap: setRendererPixelRatioCap,
+      setQualityPresetLabel: (label: string) => {
+        stats.setQualityPreset(label);
       },
     },
   );
   applyBenchmarkView();
   water.update(renderer, cascadeSystem.getCombinedSurface());
-  const stats = new StatsPanel();
-  root.appendChild(stats.element);
 
   const clock = new THREE.Clock();
 
@@ -96,6 +119,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, pixelRatioCap));
     renderer.setSize(width, height);
   };
 

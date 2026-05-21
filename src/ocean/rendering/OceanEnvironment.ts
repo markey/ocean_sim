@@ -26,6 +26,7 @@ export type OceanEnvironmentParameters = {
   sunIntensity: number;
   underwaterFogDensity: number;
   underwaterParticleStrength: number;
+  waterlineBlendDistance: number;
   underwaterMode: UnderwaterMode;
 };
 
@@ -35,15 +36,17 @@ export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = 
   sunAzimuthDegrees: 238,
   sunElevationDegrees: 22,
   sunIntensity: 3.15,
-  underwaterFogDensity: 0.022,
-  underwaterParticleStrength: 0.36,
+  underwaterFogDensity: 0.028,
+  underwaterParticleStrength: 0.48,
+  waterlineBlendDistance: 3.5,
   underwaterMode: 'auto',
 };
 
 const ABOVE_WATER_BACKGROUND = new THREE.Color(0x79aeca);
 const UNDERWATER_BACKGROUND = new THREE.Color(0x063142);
-const ABOVE_WATER_FOG = new THREE.Fog(0x9db6c5, 130, 640);
-const UNDERWATER_FOG = new THREE.FogExp2(0x0a3945, DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.underwaterFogDensity);
+const ABOVE_WATER_FOG_COLOR = new THREE.Color(0x9db6c5);
+const UNDERWATER_FOG_COLOR = new THREE.Color(0x0a3945);
+const ACTIVE_FOG = new THREE.FogExp2(ABOVE_WATER_FOG_COLOR, 0.0009);
 const SUN_DISTANCE = 620;
 
 /**
@@ -71,7 +74,7 @@ export class OceanEnvironment {
   private readonly sunDirection = new THREE.Vector3();
   private readonly sunLight?: THREE.DirectionalLight;
   private readonly hemiLight?: THREE.HemisphereLight;
-  private underwater = false;
+  private underwaterBlend = 0;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -159,7 +162,8 @@ export class OceanEnvironment {
 
     scene.add(this.group);
     this.updateSunDirection();
-    this.applyAtmosphere(false);
+    this.scene.fog = ACTIVE_FOG;
+    this.applyAtmosphere(0);
   }
 
   update(camera: THREE.Camera, elapsedSeconds: number): void {
@@ -168,12 +172,9 @@ export class OceanEnvironment {
     this.sunDisk.position.copy(this.sunDirection).multiplyScalar(SUN_DISTANCE).add(this.skyDome.position);
     this.sunDisk.lookAt(camera.position);
 
-    const forced =
-      this.parameters.underwaterMode === 'underwater' ||
-      (this.parameters.underwaterMode === 'auto' && camera.position.y < 0);
-
-    if (forced !== this.underwater) {
-      this.applyAtmosphere(forced);
+    const targetBlend = this.computeUnderwaterBlend(camera.position.y);
+    if (Math.abs(targetBlend - this.underwaterBlend) > 0.001) {
+      this.applyAtmosphere(targetBlend);
     }
 
     this.particles.position.x = camera.position.x;
@@ -205,12 +206,12 @@ export class OceanEnvironment {
       this.updateSunDirection();
     }
 
-    if (next.underwaterParticleStrength !== undefined && this.underwater) {
-      this.particleMaterial.opacity = next.underwaterParticleStrength;
-    }
-
-    if (next.underwaterFogDensity !== undefined && this.underwater) {
-      UNDERWATER_FOG.density = next.underwaterFogDensity;
+    if (
+      next.underwaterParticleStrength !== undefined ||
+      next.underwaterFogDensity !== undefined ||
+      next.waterlineBlendDistance !== undefined
+    ) {
+      this.applyAtmosphere(this.underwaterBlend);
     }
   }
 
@@ -232,22 +233,28 @@ export class OceanEnvironment {
     this.particleMaterial.dispose();
   }
 
-  private applyAtmosphere(underwater: boolean): void {
-    this.underwater = underwater;
-    this.seaFloor.visible = underwater;
-    this.particles.visible = underwater;
-    this.particleMaterial.opacity = underwater ? this.parameters.underwaterParticleStrength : 0;
+  private applyAtmosphere(underwaterBlend: number): void {
+    this.underwaterBlend = underwaterBlend;
+    this.seaFloor.visible = underwaterBlend > 0.04;
+    this.particles.visible = underwaterBlend > 0.04;
+    this.skyDome.visible = underwaterBlend < 0.65;
+    this.sunDisk.visible = underwaterBlend < 0.65;
+    this.horizonGroup.visible = underwaterBlend < 0.65;
+    this.particleMaterial.opacity = this.parameters.underwaterParticleStrength * underwaterBlend;
 
-    if (underwater) {
-      UNDERWATER_FOG.density = this.parameters.underwaterFogDensity;
-      this.scene.background = UNDERWATER_BACKGROUND;
-      this.scene.fog = UNDERWATER_FOG;
-      return;
-    }
+    const background = ABOVE_WATER_BACKGROUND.clone().lerp(UNDERWATER_BACKGROUND, underwaterBlend);
+    const fogColor = ABOVE_WATER_FOG_COLOR.clone().lerp(UNDERWATER_FOG_COLOR, underwaterBlend);
+    const aboveDensity = 0.0009 + this.parameters.horizonHaze * 0.00065;
 
-    this.scene.background = ABOVE_WATER_BACKGROUND;
+    ACTIVE_FOG.color.copy(fogColor);
+    ACTIVE_FOG.density = THREE.MathUtils.lerp(
+      aboveDensity,
+      this.parameters.underwaterFogDensity,
+      underwaterBlend,
+    );
+    this.scene.background = background;
     this.updateAboveWaterFog();
-    this.scene.fog = ABOVE_WATER_FOG;
+    this.scene.fog = ACTIVE_FOG;
   }
 
   private createSkyDome(): THREE.Mesh {
@@ -376,9 +383,24 @@ export class OceanEnvironment {
 
   private updateAboveWaterFog(): void {
     const haze = this.parameters.horizonHaze;
-    ABOVE_WATER_FOG.near = THREE.MathUtils.lerp(190, 92, haze);
-    ABOVE_WATER_FOG.far = THREE.MathUtils.lerp(880, 470, haze);
-    ABOVE_WATER_FOG.color.set(0x9db6c5).lerp(new THREE.Color(0xc5b9aa), haze * 0.38);
+    ABOVE_WATER_FOG_COLOR.set(0x9db6c5).lerp(new THREE.Color(0xc5b9aa), haze * 0.38);
+    if (this.underwaterBlend <= 0.001) {
+      ACTIVE_FOG.color.copy(ABOVE_WATER_FOG_COLOR);
+      ACTIVE_FOG.density = 0.0009 + haze * 0.00065;
+    }
+  }
+
+  private computeUnderwaterBlend(cameraY: number): number {
+    if (this.parameters.underwaterMode === 'underwater') {
+      return 1;
+    }
+
+    if (this.parameters.underwaterMode === 'above') {
+      return 0;
+    }
+
+    const blendDistance = Math.max(0.01, this.parameters.waterlineBlendDistance);
+    return THREE.MathUtils.smoothstep(-cameraY, -blendDistance, blendDistance);
   }
 }
 

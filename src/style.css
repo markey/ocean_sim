@@ -37,8 +37,9 @@ canvas {
   background: rgb(5 18 26 / 72%);
   color: #e5f8ff;
   font-size: 12px;
-  line-height: 1;
+  line-height: 1.25;
   pointer-events: none;
+  white-space: pre-line;
 }
 
 .startup-error {

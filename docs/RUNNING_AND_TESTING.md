@@ -38,6 +38,7 @@ Open that URL in a WebGPU-capable browser. You should see:
 - An **FPS** readout in the corner
 - The Milestone 8 benchmark view: low camera, visible sky/sun, horizon haze, distant rock silhouettes, and a buoy scale cue
 - The Milestone 9 surface polish controls for water color, reflection, glitter, and foam
+- The Milestone 10 quality presets, camera bookmarks, and smoother underwater transition controls
 
 The ocean should animate continuously. Waves evolve from the GPU spectral simulation and inverse FFT, not from procedural noise.
 
@@ -69,6 +70,24 @@ Milestone 9 adds a **Surface polish** GUI folder for material tuning:
 - **Sky reflection** and **Glitter sharpness** live in the **Rendering** folder with the other visual controls.
 
 These controls adjust shading only. The ocean shape, normals, sparkle mask, and crest foam still come from the spectral cascade outputs, not from decorative scrolling normal maps.
+
+## Quality presets and underwater view
+
+Milestone 10 adds a **Quality** GUI folder:
+
+- **Low** caps pixel ratio at `1`, disables swell/detail cascades, and lowers expensive visual effects.
+- **Medium** caps pixel ratio at `1.5`, keeps detail ripples, and uses moderate visual effects.
+- **High** caps pixel ratio at `2`, keeps swell/detail cascades, and restores the richest visual effects.
+
+These presets tune the active renderer and existing cascades. They do not rebuild the FFT texture resolution at runtime yet.
+
+The **Benchmark scene** folder also includes camera bookmarks:
+
+- **Apply camera** restores the benchmark waterline view.
+- **Underwater view** forces underwater mode and moves below the surface.
+- **Overview camera** switches back above water.
+
+The **Rendering** folder includes **Waterline blend**, which controls how gradually fog, background color, seafloor, and particles fade in as the camera crosses the surface.
 
 ## Manual testing checklist
 
@@ -115,6 +134,8 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Benchmark scene** | Restores the saved Milestone 8 camera and open-ocean lighting preset |
 | **Sun / haze / exposure** | Tunes the Milestone 8 sky, sun disk, horizon haze, and renderer exposure |
 | **Surface polish** | Tunes Milestone 9 water colors, sky reflection, glitter, and lighting-aware foam blend |
+| **Quality** | Switches Low/Medium/High pixel ratio, cascade, foam, and environment settings |
+| **Waterline blend** | Tunes the Milestone 10 transition distance between above-water and underwater atmosphere |
 
 ### Buoyancy (Milestone 6)
 
@@ -127,6 +148,8 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 ### Performance
 
 - [ ] FPS panel shows a stable frame rate on your target hardware
+- [ ] FPS panel shows the active quality preset
+- [ ] Low/Medium/High presets visibly change performance/visual cost
 - [ ] Interaction with debug sliders remains responsive
 
 ## Automated checks

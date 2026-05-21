@@ -28,6 +28,7 @@ import type { DebugCascadeTarget, DebugTextureMode, DebugTextureView } from './D
 type DebugGuiState = OceanCascadeSystemParameters & {
   windDirectionDegrees: number;
   preset: OceanPresetId;
+  qualityPreset: QualityPresetId;
   debugView: DebugTextureMode;
   debugCascade: DebugCascadeTarget;
   foam: FoamParameters & { renderStrength: number };
@@ -45,7 +46,66 @@ export type BuoyancyDebugTargets = {
 
 export type BenchmarkDebugTargets = {
   applyBenchmarkView: () => void;
+  applyUnderwaterView: () => void;
+  applyOverview: () => void;
   setExposure: (exposure: number) => void;
+  setPixelRatioCap: (pixelRatioCap: number) => void;
+  setQualityPresetLabel: (label: string) => void;
+};
+
+type QualityPresetId = 'low' | 'medium' | 'high';
+
+type QualityPreset = {
+  label: string;
+  pixelRatioCap: number;
+  swellEnabled: boolean;
+  detailEnabled: boolean;
+  foamEnabled: boolean;
+  foamRenderStrength: number;
+  causticStrength: number;
+  underwaterParticleStrength: number;
+  refractionStrength: number;
+  sparkleStrength: number;
+};
+
+const QUALITY_PRESETS: Record<QualityPresetId, QualityPreset> = {
+  low: {
+    label: 'Low',
+    pixelRatioCap: 1,
+    swellEnabled: false,
+    detailEnabled: false,
+    foamEnabled: true,
+    foamRenderStrength: 0.32,
+    causticStrength: 0.12,
+    underwaterParticleStrength: 0.12,
+    refractionStrength: 0.12,
+    sparkleStrength: 0.55,
+  },
+  medium: {
+    label: 'Medium',
+    pixelRatioCap: 1.5,
+    swellEnabled: false,
+    detailEnabled: true,
+    foamEnabled: true,
+    foamRenderStrength: 0.44,
+    causticStrength: 0.24,
+    underwaterParticleStrength: 0.32,
+    refractionStrength: 0.18,
+    sparkleStrength: 0.9,
+  },
+  high: {
+    label: 'High',
+    pixelRatioCap: 2,
+    swellEnabled: true,
+    detailEnabled: true,
+    foamEnabled: true,
+    foamRenderStrength: DEFAULT_WATER_RENDERING_PARAMETERS.foamStrength,
+    causticStrength: DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.causticStrength,
+    underwaterParticleStrength:
+      DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.underwaterParticleStrength,
+    refractionStrength: DEFAULT_WATER_RENDERING_PARAMETERS.refractionStrength,
+    sparkleStrength: DEFAULT_WATER_RENDERING_PARAMETERS.sparkleStrength,
+  },
 };
 
 function refreshGuiDisplays(gui: GUI): void {
@@ -77,6 +137,7 @@ export class DebugControls {
       },
       windDirectionDegrees: (parameters.windDirection * 180) / Math.PI,
       preset: 'openOcean',
+      qualityPreset: 'high',
       debugView: 'off',
       debugCascade: 'combined',
       foam: {
@@ -293,6 +354,28 @@ export class DebugControls {
       benchmarkTargets?.setExposure(this.state.rendering.exposure);
     };
 
+    const applyQualityPreset = (id: QualityPresetId) => {
+      const preset = QUALITY_PRESETS[id];
+      this.state.qualityPreset = id;
+      this.state.cascades.swell.enabled = preset.swellEnabled;
+      this.state.cascades.detail.enabled = preset.detailEnabled;
+      this.state.foam.enabled = preset.foamEnabled;
+      this.state.foam.renderStrength = preset.foamRenderStrength;
+      this.state.rendering.foamStrength = preset.foamRenderStrength;
+      this.state.rendering.causticStrength = preset.causticStrength;
+      this.state.rendering.underwaterParticleStrength = preset.underwaterParticleStrength;
+      this.state.rendering.refractionStrength = preset.refractionStrength;
+      this.state.rendering.sparkleStrength = preset.sparkleStrength;
+
+      cascadeSystem.setCascadeParameters('swell', { enabled: preset.swellEnabled });
+      cascadeSystem.setCascadeParameters('detail', { enabled: preset.detailEnabled });
+      syncFoam();
+      syncWaterRendering();
+      benchmarkTargets?.setPixelRatioCap(preset.pixelRatioCap);
+      benchmarkTargets?.setQualityPresetLabel(preset.label);
+      refreshGuiDisplays(this.gui);
+    };
+
     const benchmarkFolder = this.gui.addFolder('Benchmark scene');
     benchmarkFolder
       .add(
@@ -333,7 +416,46 @@ export class DebugControls {
         'applyPreset',
       )
       .name('Apply full preset');
+    benchmarkFolder
+      .add(
+        {
+          underwater: () => {
+            this.state.rendering.underwaterMode = 'underwater';
+            syncWaterRendering();
+            benchmarkTargets?.applyUnderwaterView();
+            refreshGuiDisplays(this.gui);
+          },
+        },
+        'underwater',
+      )
+      .name('Underwater view');
+    benchmarkFolder
+      .add(
+        {
+          overview: () => {
+            this.state.rendering.underwaterMode = 'above';
+            syncWaterRendering();
+            benchmarkTargets?.applyOverview();
+            refreshGuiDisplays(this.gui);
+          },
+        },
+        'overview',
+      )
+      .name('Overview camera');
     benchmarkFolder.open();
+
+    const qualityFolder = this.gui.addFolder('Quality');
+    qualityFolder
+      .add(this.state, 'qualityPreset', {
+        Low: 'low',
+        Medium: 'medium',
+        High: 'high',
+      })
+      .name('Preset')
+      .onChange((id: QualityPresetId) => {
+        applyQualityPreset(id);
+      });
+    qualityFolder.open();
 
     renderingFolder
       .add(this.state.rendering, 'fresnelStrength', 0, 1.5, 0.01)
@@ -408,6 +530,11 @@ export class DebugControls {
     renderingFolder
       .add(this.state.rendering, 'underwaterParticleStrength', 0, 1, 0.01)
       .name('Particles')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'waterlineBlendDistance', 0.25, 8, 0.25)
+      .name('Waterline blend')
       .decimals(2)
       .onChange(syncWaterRendering);
     renderingFolder
@@ -546,6 +673,7 @@ export class DebugControls {
     syncFoam();
     water.setPatchSize(parameters.worldPatchSize);
     this.applyPreset(OCEAN_PRESETS[this.state.preset]);
+    applyQualityPreset(this.state.qualityPreset);
   }
 
   dispose(): void {
