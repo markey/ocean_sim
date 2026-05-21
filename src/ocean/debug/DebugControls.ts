@@ -73,7 +73,7 @@ export class DebugControls {
       preset: 'windySea',
       debugView: 'off',
       debugCascade: 'combined',
-      foam: { ...DEFAULT_FOAM_PARAMETERS, renderStrength: 1.35 },
+      foam: { ...DEFAULT_FOAM_PARAMETERS, renderStrength: 0.52 },
       rendering: {
         ...DEFAULT_WATER_RENDERING_PARAMETERS,
         ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,

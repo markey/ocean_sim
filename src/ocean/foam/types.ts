@@ -16,8 +16,8 @@ export type FoamParameters = {
 
 export const DEFAULT_FOAM_PARAMETERS: FoamParameters = {
   enabled: true,
-  threshold: 0.14,
-  accumulationRate: 2.2,
-  decayRate: 0.45,
-  coverage: 2.2,
+  threshold: 0.22,
+  accumulationRate: 1.15,
+  decayRate: 0.72,
+  coverage: 1.05,
 };

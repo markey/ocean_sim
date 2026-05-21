@@ -22,15 +22,15 @@ export type OceanEnvironmentParameters = {
 };
 
 export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = {
-  causticStrength: 0.22,
-  underwaterFogDensity: 0.026,
-  underwaterParticleStrength: 0.48,
+  causticStrength: 0.32,
+  underwaterFogDensity: 0.022,
+  underwaterParticleStrength: 0.36,
   underwaterMode: 'auto',
 };
 
-const ABOVE_WATER_BACKGROUND = new THREE.Color(0x8ab7c9);
-const UNDERWATER_BACKGROUND = new THREE.Color(0x0a3945);
-const ABOVE_WATER_FOG = new THREE.Fog(0x8ab7c9, 260, 900);
+const ABOVE_WATER_BACKGROUND = new THREE.Color(0x6fa7bb);
+const UNDERWATER_BACKGROUND = new THREE.Color(0x063142);
+const ABOVE_WATER_FOG = new THREE.Fog(0x6fa7bb, 180, 780);
 const UNDERWATER_FOG = new THREE.FogExp2(0x0a3945, DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.underwaterFogDensity);
 
 /**
@@ -62,23 +62,23 @@ export class OceanEnvironment {
       metalness: 0,
     });
     floorMaterial.colorNode = Fn(() => {
-      const sand = color(0x827d63);
-      const tealShadow = color(0x1c5861);
-      const waveA = sin(positionWorld.x.mul(0.31).add(this.timeUniform.mul(0.72)));
-      const waveB = sin(positionWorld.z.mul(0.27).sub(this.timeUniform.mul(0.56)));
+      const sand = color(0x8c876d);
+      const tealShadow = color(0x164a54);
+      const waveA = sin(positionWorld.x.mul(0.78).add(this.timeUniform.mul(0.72)));
+      const waveB = sin(positionWorld.z.mul(0.68).sub(this.timeUniform.mul(0.56)));
       const waveC = cos(
-        positionWorld.x.mul(0.18).add(positionWorld.z.mul(0.23)).add(this.timeUniform.mul(0.93)),
+        positionWorld.x.mul(0.52).add(positionWorld.z.mul(0.61)).add(this.timeUniform.mul(0.93)),
       );
       const waveD = sin(
-        positionWorld.x.mul(-0.21).add(positionWorld.z.mul(0.16)).sub(this.timeUniform.mul(0.68)),
+        positionWorld.x.mul(-0.58).add(positionWorld.z.mul(0.47)).sub(this.timeUniform.mul(0.68)),
       );
       const causticLines = pow(
-        saturate(waveA.add(waveB).add(waveC).add(waveD).mul(0.18).add(0.48)),
-        float(11),
+        saturate(waveA.add(waveB).add(waveC).add(waveD).mul(0.17).add(0.52)),
+        float(15),
       );
       const caustics = causticLines.mul(this.causticStrengthUniform);
 
-      return mix(tealShadow, sand, float(0.58)).add(color(0xd8f2de).mul(caustics));
+      return mix(tealShadow, sand, float(0.55)).add(color(0xcdf7df).mul(caustics));
     })();
     floorMaterial.emissiveNode = Fn(() => {
       const pulse = pow(
@@ -90,7 +90,7 @@ export class OceanEnvironment {
         ),
         float(12),
       );
-      return color(0x9ff3d4).mul(pulse).mul(this.causticStrengthUniform).mul(0.12);
+      return color(0x9ff3d4).mul(pulse).mul(this.causticStrengthUniform).mul(0.18);
     })();
 
     this.seaFloor = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -114,7 +114,7 @@ export class OceanEnvironment {
     particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     this.particleMaterial = new THREE.PointsMaterial({
       color: 0xbdeef0,
-      size: 0.11,
+      size: 0.08,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -174,6 +174,7 @@ export class OceanEnvironment {
 
   private applyAtmosphere(underwater: boolean): void {
     this.underwater = underwater;
+    this.seaFloor.visible = underwater;
     this.particles.visible = underwater;
     this.particleMaterial.opacity = underwater ? this.parameters.underwaterParticleStrength : 0;
 

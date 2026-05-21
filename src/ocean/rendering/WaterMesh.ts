@@ -36,12 +36,12 @@ export type WaterRenderingParameters = {
 };
 
 export const DEFAULT_WATER_RENDERING_PARAMETERS: WaterRenderingParameters = {
-  fresnelStrength: 0.62,
-  refractionStrength: 0.18,
-  absorptionStrength: 0.12,
-  scatteringStrength: 0.34,
-  sparkleStrength: 0.78,
-  foamStrength: 1.35,
+  fresnelStrength: 0.82,
+  refractionStrength: 0.24,
+  absorptionStrength: 0.085,
+  scatteringStrength: 0.22,
+  sparkleStrength: 0.95,
+  foamStrength: 0.52,
 };
 
 export class WaterMesh {
@@ -81,11 +81,11 @@ export class WaterMesh {
     );
 
     this.material = new THREE.MeshStandardNodeMaterial({
-      color: new THREE.Color(0x0d7790),
-      roughness: 0.28,
+      color: new THREE.Color(0x075f78),
+      roughness: 0.18,
       metalness: 0.01,
     });
-    this.material.flatShading = true;
+    this.material.flatShading = false;
     this.material.transparent = true;
     this.material.depthWrite = true;
 
@@ -96,12 +96,13 @@ export class WaterMesh {
 
     this.material.colorNode = Fn(() => {
       const worldNormal = normalWorld;
-      const deepWater = color(0x063c4f);
-      const shallowWater = color(0x1fa8b6);
-      const refractedWater = color(0x2aa6a0);
-      const skyReflection = color(0xc9ecf7);
-      const subSurface = color(0x58d1c7);
-      const foamColor = color(0xf2f8fc);
+      const deepWater = color(0x05384d);
+      const midWater = color(0x076f84);
+      const shallowWater = color(0x18a4a7);
+      const refractedWater = color(0x1b8d8a);
+      const skyReflection = color(0x8fc7d8);
+      const subSurface = color(0x39c0b1);
+      const foamColor = color(0xdbeef1);
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
       const fresnel = pow(oneMinus(saturate(dot(worldNormal, viewDirection))), float(4)).mul(
         this.fresnelStrengthUniform,
@@ -111,11 +112,8 @@ export class WaterMesh {
       const waveShade = pow(saturate(slope), float(0.55));
       const waterDepth = max(positionWorld.y.sub(seaFloorY), float(0.1));
       const absorption = oneMinus(exp(waterDepth.mul(this.absorptionStrengthUniform).mul(-1)));
-      const baseColor = mix(
-        shallowWater,
-        deepWater,
-        saturate(absorption.add(waveShade.mul(0.32))),
-      );
+      const depthColor = mix(shallowWater, deepWater, saturate(absorption));
+      const baseColor = mix(depthColor, midWater, saturate(waveShade.mul(0.22)));
 
       // Approximate forward subsurface scatter where thin crests face the sun.
       const sunDirection = normalize(vec3(this.sunDirectionUniform));
@@ -131,17 +129,17 @@ export class WaterMesh {
       const refractedScene = viewportSharedTexture(refractUv).rgb;
       const refracted = mix(refractedScene, refractedWater, saturate(absorption.mul(0.75)));
       const reflected = mix(
-        mix(scattered, refracted, this.refractionStrengthUniform.mul(0.24)),
+        mix(scattered, refracted, this.refractionStrengthUniform.mul(0.32)),
         skyReflection,
         fresnel,
       );
 
       const sunReflection = reflect(sunDirection.mul(float(-1)), worldNormal);
-      const glintBase = pow(saturate(dot(sunReflection, viewDirection)), float(180));
+      const glintBase = pow(saturate(dot(sunReflection, viewDirection)), float(260));
       const sparklePattern = sin(positionWorld.x.mul(18).add(this.timeUniform.mul(3.1))).mul(
         cos(positionWorld.z.mul(23).sub(this.timeUniform.mul(2.7))),
       );
-      const sparkleMask = pow(saturate(sparklePattern.mul(0.5).add(0.5)), float(9));
+      const sparkleMask = pow(saturate(sparklePattern.mul(0.5).add(0.5)), float(13));
       const sparkle = glintBase.mul(sparkleMask).mul(this.sparkleStrengthUniform);
 
       // World XZ → simulation UV (repeat-wrapped foam field).
@@ -149,33 +147,33 @@ export class WaterMesh {
         positionWorld.x.add(patchHalf).div(this.patchSizeUniform),
         positionWorld.z.add(patchHalf).div(this.patchSizeUniform),
       );
-      const accumulatedFoam = texture(foamTex, foamUv).r.mul(this.foamStrengthUniform);
+      const accumulatedFoam = texture(foamTex, foamUv).r;
       const jacobianSample = texture(jacobianTex, foamUv);
       const compression = jacobianSample.g;
-      const instantFoam = pow(saturate(compression.mul(float(3.2))), float(1.4));
+      const instantFoam = pow(saturate(compression.mul(float(1.7))), float(2.25));
       const foamMask = max(
-        pow(saturate(accumulatedFoam), float(0.7)),
-        instantFoam,
-      ).mul(pow(saturate(worldNormal.y), float(0.2)));
+        pow(saturate(accumulatedFoam), float(1.35)).mul(float(0.72)),
+        instantFoam.mul(float(0.48)),
+      ).mul(this.foamStrengthUniform).mul(pow(saturate(worldNormal.y), float(0.45)));
 
-      return mix(reflected.add(skyReflection.mul(sparkle)), foamColor, saturate(foamMask));
+      return mix(reflected.add(color(0xf5fbff).mul(sparkle)), foamColor, saturate(foamMask));
     })();
 
     this.material.roughnessNode = Fn(() => {
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
       const fresnel = oneMinus(saturate(dot(normalWorld, viewDirection)));
       return mix(
-        float(0.2),
-        float(0.055),
-        saturate(fresnel.add(this.sparkleStrengthUniform.mul(0.25))),
+        float(0.32),
+        float(0.07),
+        saturate(fresnel.add(this.sparkleStrengthUniform.mul(0.18))),
       );
     })();
     this.material.opacityNode = Fn(() => {
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
       const fresnel = pow(oneMinus(saturate(dot(normalWorld, viewDirection))), float(3));
       return mix(
-        float(0.86),
-        float(0.96),
+        float(0.88),
+        float(0.97),
         saturate(fresnel.add(this.fresnelStrengthUniform.mul(0.2))),
       );
     })();
@@ -183,10 +181,10 @@ export class WaterMesh {
       const refractUv = screenUV.add(
         normalWorld.xz.mul(this.refractionStrengthUniform).mul(float(0.018)),
       );
-      const underwaterTint = color(0x0c6f83);
-      return mix(viewportSharedTexture(refractUv).rgb, underwaterTint, float(0.24));
+      const underwaterTint = color(0x07566a);
+      return mix(viewportSharedTexture(refractUv).rgb, underwaterTint, float(0.34));
     })();
-    this.material.backdropAlphaNode = this.refractionStrengthUniform.mul(0.22);
+    this.material.backdropAlphaNode = this.refractionStrengthUniform.mul(0.28);
 
     this.mesh = new THREE.Mesh(geometry, this.material);
     this.mesh.name = 'FFT Water Mesh';

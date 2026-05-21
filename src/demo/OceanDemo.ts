@@ -29,22 +29,22 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
+  renderer.toneMappingExposure = 0.92;
   root.appendChild(renderer.domElement);
 
   await renderer.init();
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
-  controls.target.set(2, 4, 0);
-  controls.maxPolarAngle = Math.PI * 0.48;
+  controls.target.set(2, 2, 0);
+  controls.maxPolarAngle = Math.PI * 0.72;
   controls.minDistance = 12;
   controls.maxDistance = 280;
 
-  const sun = new THREE.DirectionalLight(0xffffff, 3.2);
+  const sun = new THREE.DirectionalLight(0xfff7e6, 2.45);
   sun.position.set(80, 120, 40);
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0xb9e7ff, 0x1f3b43, 1.2));
+  scene.add(new THREE.HemisphereLight(0xaedff2, 0x153640, 0.82));
 
   const parameters = createDefaultCascadeSystemParameters();
   const cascadeSystem = new OceanCascadeSystem(parameters);
