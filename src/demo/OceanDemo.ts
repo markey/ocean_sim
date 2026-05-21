@@ -90,8 +90,8 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     cascadeSystem.update(renderer, deltaSeconds);
     const surface = cascadeSystem.getCombinedSurface();
     water.update(renderer, surface);
-    floatingSphere.update(deltaSeconds, surface, water);
-    floatingBoat.update(deltaSeconds, surface, water);
+    floatingSphere.update(deltaSeconds, surface);
+    floatingBoat.update(deltaSeconds, surface);
     controls.update();
     debugTextureView.updateLayout(camera, window.innerWidth, window.innerHeight);
     stats.update(deltaSeconds);

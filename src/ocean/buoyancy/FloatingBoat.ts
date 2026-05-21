@@ -1,5 +1,4 @@
 import * as THREE from 'three/webgpu';
-import type { WaterMesh } from '../rendering/WaterMesh';
 import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
 import { followTargetHeight, integrateVerticalBuoyancy } from './buoyancyIntegration';
 import { sampleOceanSurfacePoint } from './OceanSurfaceSampler';
@@ -118,7 +117,7 @@ export class FloatingBoat {
     this.syncGroupTransform();
   }
 
-  update(deltaSeconds: number, surface: OceanSurfaceProvider, water: WaterMesh): void {
+  update(deltaSeconds: number, surface: OceanSurfaceProvider): void {
     if (!this.enabled || deltaSeconds <= 0) {
       return;
     }
@@ -133,7 +132,6 @@ export class FloatingBoat {
         this.position.z + localOffset.z,
       );
       sampleOceanSurfacePoint(surface, point.world.x, point.world.z, point.water);
-      point.water.y = water.sampleWorldHeight(point.world.x, point.world.z);
       averageWaterHeight += point.water.y;
     }
 

@@ -1,8 +1,7 @@
 import * as THREE from 'three/webgpu';
-import type { WaterMesh } from '../rendering/WaterMesh';
 import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
 import { followTargetHeight, integrateVerticalBuoyancy } from './buoyancyIntegration';
-import { sampleOceanSurface } from './OceanSurfaceSampler';
+import { sampleOceanSurfaceHeight } from './OceanSurfaceSampler';
 import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from './types';
 
 export type FloatingSphereOptions = {
@@ -66,18 +65,17 @@ export class FloatingSphere {
     this.syncMeshTransform();
   }
 
-  update(deltaSeconds: number, surface: OceanSurfaceProvider, water: WaterMesh): void {
+  update(deltaSeconds: number, surface: OceanSurfaceProvider): void {
     if (!this.enabled || deltaSeconds <= 0) {
       return;
     }
 
-    const sample = sampleOceanSurface(
+    const waterHeight = sampleOceanSurfaceHeight(
       surface,
       this.position.x,
       this.position.z,
       surfaceSampleScratch,
     );
-    const waterHeight = water.sampleWorldHeight(this.position.x, this.position.z);
     const surfaceY = waterHeight + this.radius;
     const targetY = followTargetHeight(
       this.smoothedTargetY,
@@ -105,7 +103,7 @@ export class FloatingSphere {
     this.syncMeshTransform();
 
     const blend = 1 - Math.exp(-this.buoyancy.orientationBlend * deltaSeconds);
-    targetQuaternion.setFromUnitVectors(up, sample.normal);
+    targetQuaternion.setFromUnitVectors(up, surfaceSampleScratch.normal);
     this.mesh.quaternion.slerp(targetQuaternion, blend);
   }
 

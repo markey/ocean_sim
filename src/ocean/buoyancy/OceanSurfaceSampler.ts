@@ -91,6 +91,27 @@ function sampleOceanSurfaceRaw(
   return target;
 }
 
+function sampleOceanSurfaceAtWorldColumn(
+  surface: OceanSurfaceProvider,
+  worldX: number,
+  worldZ: number,
+  target: OceanSurfaceSample,
+): OceanSurfaceSample {
+  let sampleX = worldX;
+  let sampleZ = worldZ;
+
+  // Tessendorf horizontal chop moves the grid vertex away from its FFT sample point.
+  // Iterating this inverse lookup finds the source sample whose displaced XZ lands
+  // under the queried world column, which is the surface used for collision.
+  for (let i = 0; i < 4; i += 1) {
+    sampleOceanSurfaceRaw(surface, sampleX, sampleZ, target);
+    sampleX = worldX - target.displacementX;
+    sampleZ = worldZ - target.displacementZ;
+  }
+
+  return sampleOceanSurfaceRaw(surface, sampleX, sampleZ, target);
+}
+
 /**
  * Bilinear sample of the merged simulation field at a world-space XZ point.
  * Reads CPU-side DataTexture pixels produced by {@link OceanCascadeSystem}.
@@ -114,18 +135,7 @@ export function sampleOceanSurfaceHeight(
   worldZ: number,
   target: OceanSurfaceSample = scratchSample,
 ): number {
-  let sampleX = worldX;
-  let sampleZ = worldZ;
-
-  // Tessendorf inverse lookup: find the grid point that landed under this world column.
-  for (let i = 0; i < 3; i += 1) {
-    sampleOceanSurfaceRaw(surface, sampleX, sampleZ, target);
-    sampleX = worldX - target.displacementX;
-    sampleZ = worldZ - target.displacementZ;
-  }
-
-  sampleOceanSurfaceRaw(surface, sampleX, sampleZ, target);
-  return target.height;
+  return sampleOceanSurfaceAtWorldColumn(surface, worldX, worldZ, target).height;
 }
 
 /** World-space point on the displaced ocean surface (Y = η). */
@@ -135,11 +145,6 @@ export function sampleOceanSurfacePoint(
   worldZ: number,
   target = new THREE.Vector3(),
 ): THREE.Vector3 {
-  const sample = sampleOceanSurface(surface, worldX, worldZ);
-  const height = sampleOceanSurfaceHeight(surface, worldX, worldZ, sample);
-  return target.set(
-    worldX + sample.displacementX,
-    height,
-    worldZ + sample.displacementZ,
-  );
+  const sample = sampleOceanSurfaceAtWorldColumn(surface, worldX, worldZ, scratchSample);
+  return target.set(worldX, sample.height, worldZ);
 }
