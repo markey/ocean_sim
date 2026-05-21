@@ -166,6 +166,99 @@ Acceptance criteria:
 - Underwater mode should feel intentional rather than like a color overlay.
 - The benchmark workflow should make it easy to compare Milestone 8, 9, and 10 screenshots.
 
+## Water Pro visual target (post–Milestone 10)
+
+The reference screenshot `docs/water_pro.jpg` (Three.js Water Pro, Sea of Thieves preset) is the visual direction for the next polish pass. Milestones 8–10 already cover benchmark scene setup, surface polish, and quality presets. The remaining gap is mostly composition, atmosphere, and tuning of existing simulation-driven shading — not replacing the spectral pipeline.
+
+### Achievable without major performance cost
+
+These use existing cascade, foam, and environment data, or cheap visual-only additions:
+
+- Benchmark composition: hero boat, buoy, better island silhouettes, tuned waterline camera
+- Sky mood: procedural cloud bands, soft sun halo, warmer grading, stronger horizon haze
+- Water material tuning: richer teal palette, crest subsurface scatter, translucency, analytic sky-dome reflections
+- Sun glitter: broader highlights driven by simulated normals/slopes and cascade detail
+- Crest foam polish: sharper Jacobian/accumulated foam masks, better lighting response
+- Contact foam: cheap proximity-based foam rings around boat hull and buoy
+- Sea-state tuning: choppiness, cascade mix, and foam thresholds for the benchmark open-ocean preset
+- Optional lightweight bloom on sun disk and glitter (single pass or shader fake, only if WebGPU cost stays modest)
+
+### Explicitly out of scope for these milestones
+
+Avoid features that require raytracing, full-scene render targets, or heavy post stacks:
+
+- Hardware or software raytracing
+- Per-frame scene reflection/refraction render targets or screen-space reflections
+- Volumetric god rays or multi-pass volumetric fog
+- Decorative scrolling normal maps as the primary wave detail
+- Runtime FFT resolution changes or GPU FFT migration (separate performance milestone later)
+- Shoreline foam, object wake simulation, and full underwater polish beyond what Milestone 10 already provides
+
+Performance guardrail: each milestone below should keep the **High** quality preset interactive on a modern WebGPU laptop/desktop at the current default simulation resolution (roughly 40+ FPS target).
+
+Milestone 11: Benchmark props and composition
+Replace placeholder debug geometry with a composed benchmark scene inspired by the Water Pro screenshot. No simulation changes.
+
+Add:
+- A stylized low-poly hero boat mesh as the focal prop (replacing or upgrading the current box hull)
+- A simple buoy prop for scale (replacing the debug sphere where appropriate)
+- Improved horizon silhouettes: rocky islands with optional low-poly palm or tree cues
+- Retuned benchmark camera height, look target, sun glint angle, and prop placement to match the reference framing
+- Optional GUI hide toggle or screenshot mode for clean benchmark captures
+- Updated benchmark preset values and documentation for the new layout
+
+Acceptance criteria:
+- The benchmark view reads as a composed sea scene rather than a debug test layout
+- Boat and buoy sit convincingly at the waterline using the existing buoyancy system
+- README or running/testing docs describe the updated benchmark layout and screenshot workflow
+
+Milestone 12: Sky, sun, and atmosphere
+Improve mood and depth using the existing sky dome and fog — no volumetrics or raytracing.
+
+Add:
+- Procedural wispy cloud bands on the sky dome shader
+- Soft sun halo or disk glow (shader-based; optional lightweight bloom only if cost stays low)
+- Warmer sun color, cooler zenith sky, and stronger horizon haze defaults for the benchmark preset
+- Slightly improved fog/background integration so distant islands soften naturally
+- Debug controls grouped into a "Sky & atmosphere" folder (or extend the existing Rendering folder)
+
+Acceptance criteria:
+- The benchmark scene feels brighter and more atmospheric than Milestone 10
+- Sky reads closer to the Water Pro reference (clouds, warm haze, visible sun) without new render passes per object
+- High preset FPS remains within the performance guardrail
+
+Milestone 13: Water color, glitter, and reflections
+Polish the existing TSL water material using simulation outputs and analytic environment sampling only.
+
+Add:
+- Richer shallow/deep water palette with stronger crest subsurface scatter and slight crest translucency
+- Sun glitter driven primarily by simulated normals, slopes, and cascade detail — reduce reliance on decorative procedural facet noise
+- Improved Fresnel response and analytic sky-dome reflection sampling (direction-based sky color, not a scene render target)
+- Benchmark open-ocean sea-state tuning: choppiness, cascade amplitudes, and foam deposit thresholds for a windier, more lively surface
+- Debug controls for the new defaults in Surface polish / Rendering folders
+
+Acceptance criteria:
+- Water reads more vibrant and less flat/plastic at the benchmark camera than Milestone 10
+- Highlights and crest color come from spectral/cascade data, not fake wave textures
+- No new reflection/refraction render targets are introduced
+- High preset FPS remains within the performance guardrail
+
+Milestone 14: Foam polish and object contact effects
+Improve foam appearance and add cheap object interaction using the existing foam/Jacobian pipeline.
+
+Add:
+- Sharper crest foam masks, better foam contrast defaults, and lighting-aware foam color tuning
+- Contact foam rings around the boat hull and buoy using world-space proximity to object bounds (no fluid simulation)
+- Reduced visible tiling in foam and displacement at the benchmark camera distance (UV/world-scale tuning)
+- Optional simple wake-foam streak behind the moving boat via localized foam deposit or a cheap trailing mask
+- Benchmark preset foam defaults tuned so whitecaps are clearly visible at the reference wind speed
+
+Acceptance criteria:
+- Crest foam is clearly visible and less flat-white at the benchmark sea state
+- Contact foam appears where objects meet the water
+- Foam still originates from Jacobian/accumulation or explicit contact masks — not random noise
+- High preset FPS remains within the performance guardrail
+
 Constraints:
 - Do not replace the simulation with procedural noise.
 - Do not use Gerstner waves as the main solution.

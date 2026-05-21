@@ -1,6 +1,6 @@
 # Spectral Ocean Simulation
 
-Milestone 10 adds underwater polish, camera bookmarks, and practical quality presets on top of the existing spectral simulation. Low/Medium/High presets tune pixel ratio, cascade enablement, foam, refraction, sparkle, caustics, and underwater particles; underwater mode now blends across the waterline instead of snapping atmosphere abruptly. Milestone 9 surface polish, Milestone 8 benchmark scene lighting, Milestone 7 water rendering, buoyancy, crest foam, cascades, JONSWAP presets, and debug texture views remain.
+Milestone 10 adds underwater polish, camera bookmarks, and practical quality presets on top of the existing spectral simulation. Low/Medium/High presets tune pixel ratio, cascade enablement, foam, refraction, sparkle, caustics, and underwater particles; underwater mode now blends across the waterline instead of snapping atmosphere abruptly. Milestone 9 surface polish, Milestone 8 benchmark scene lighting, Milestone 7 water rendering, buoyancy, crest foam, cascades, JONSWAP presets, and debug texture views remain. Planned Milestones 11–14 (see `docs/OCEAN_SIM_PROJECT_BRIEF.md`) target achievable Water Pro–style polish: benchmark composition, sky/atmosphere, water material tuning, and contact foam — without raytracing or full-scene reflection passes.
 
 ## Run
 
