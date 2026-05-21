@@ -11,7 +11,17 @@ import {
   type OceanCascadeSystemParameters,
 } from '../simulation/cascadeConfig';
 import type { OceanCascadeSystem } from '../simulation/OceanCascadeSystem';
-import type { WaterMesh } from '../rendering/WaterMesh';
+import {
+  DEFAULT_WATER_RENDERING_PARAMETERS,
+  type WaterMesh,
+  type WaterRenderingParameters,
+} from '../rendering/WaterMesh';
+import {
+  DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,
+  type OceanEnvironment,
+  type OceanEnvironmentParameters,
+  type UnderwaterMode,
+} from '../rendering/OceanEnvironment';
 import { DEFAULT_FOAM_PARAMETERS, type FoamParameters } from '../foam/types';
 import type { DebugCascadeTarget, DebugTextureMode, DebugTextureView } from './DebugTextureView';
 
@@ -21,6 +31,7 @@ type DebugGuiState = OceanCascadeSystemParameters & {
   debugView: DebugTextureMode;
   debugCascade: DebugCascadeTarget;
   foam: FoamParameters & { renderStrength: number };
+  rendering: WaterRenderingParameters & OceanEnvironmentParameters;
   buoyancy: BuoyancyParameters & {
     sphereEnabled: boolean;
     boatEnabled: boolean;
@@ -48,6 +59,7 @@ export class DebugControls {
     water: WaterMesh,
     debugView: DebugTextureView,
     buoyancyTargets?: BuoyancyDebugTargets,
+    oceanEnvironment?: OceanEnvironment,
   ) {
     this.gui = new GUI({ title: 'Spectral Ocean' });
     this.state = {
@@ -62,6 +74,10 @@ export class DebugControls {
       debugView: 'off',
       debugCascade: 'combined',
       foam: { ...DEFAULT_FOAM_PARAMETERS, renderStrength: 1.35 },
+      rendering: {
+        ...DEFAULT_WATER_RENDERING_PARAMETERS,
+        ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,
+      },
       buoyancy: {
         ...DEFAULT_BUOYANCY_PARAMETERS,
         sphereEnabled: true,
@@ -255,6 +271,68 @@ export class DebugControls {
       .decimals(2)
       .onChange(syncFoam);
     foamFolder.add({ clear: () => cascadeSystem.clearFoam() }, 'clear').name('Clear foam');
+
+    const renderingFolder = this.gui.addFolder('Rendering');
+    const syncWaterRendering = () => {
+      water.setRenderingParameters(this.state.rendering);
+      water.setFoamStrength(this.state.rendering.foamStrength);
+      if (oceanEnvironment) {
+        oceanEnvironment.setParameters(this.state.rendering);
+      }
+    };
+
+    renderingFolder
+      .add(this.state.rendering, 'fresnelStrength', 0, 1.5, 0.01)
+      .name('Fresnel')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'refractionStrength', 0, 1.2, 0.01)
+      .name('Refraction')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'absorptionStrength', 0.01, 0.24, 0.005)
+      .name('Absorption')
+      .decimals(3)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'scatteringStrength', 0, 1.2, 0.01)
+      .name('Subsurface')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'sparkleStrength', 0, 1.8, 0.01)
+      .name('Sparkle')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'causticStrength', 0, 1.5, 0.01)
+      .name('Caustics')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'underwaterFogDensity', 0.004, 0.08, 0.001)
+      .name('Water fog')
+      .decimals(3)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'underwaterParticleStrength', 0, 1, 0.01)
+      .name('Particles')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'underwaterMode', {
+        Auto: 'auto',
+        Above: 'above',
+        Underwater: 'underwater',
+      })
+      .name('Underwater')
+      .onChange((mode: UnderwaterMode) => {
+        this.state.rendering.underwaterMode = mode;
+        syncWaterRendering();
+      });
+    syncWaterRendering();
 
     if (buoyancyTargets) {
       const { sphere, boat } = buoyancyTargets;

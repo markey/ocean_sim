@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FloatingBoat, FloatingSphere } from '../ocean/buoyancy';
 import { DebugControls } from '../ocean/debug/DebugControls';
 import { DebugTextureView } from '../ocean/debug/DebugTextureView';
+import { OceanEnvironment } from '../ocean/rendering/OceanEnvironment';
 import { WaterMesh } from '../ocean/rendering/WaterMesh';
 import { createDefaultCascadeSystemParameters } from '../ocean/simulation/cascadeConfig';
 import { OceanCascadeSystem } from '../ocean/simulation/OceanCascadeSystem';
@@ -48,6 +49,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   const parameters = createDefaultCascadeSystemParameters();
   const cascadeSystem = new OceanCascadeSystem(parameters);
   const water = new WaterMesh(cascadeSystem.getCombinedSurface());
+  const oceanEnvironment = new OceanEnvironment(scene);
   const debugTextureView = new DebugTextureView(cascadeSystem);
   const floatingSphere = new FloatingSphere();
   const floatingBoat = new FloatingBoat();
@@ -66,6 +68,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     water,
     debugTextureView,
     { sphere: floatingSphere, boat: floatingBoat },
+    oceanEnvironment,
   );
   water.update(renderer, cascadeSystem.getCombinedSurface());
   const stats = new StatsPanel();
@@ -90,6 +93,9 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     cascadeSystem.update(renderer, deltaSeconds);
     const surface = cascadeSystem.getCombinedSurface();
     water.update(renderer, surface);
+    const elapsedSeconds = clock.elapsedTime;
+    oceanEnvironment.update(camera, elapsedSeconds);
+    water.updateRendering(elapsedSeconds, oceanEnvironment.getSunDirection());
     floatingSphere.update(deltaSeconds, surface);
     floatingBoat.update(deltaSeconds, surface);
     controls.update();
@@ -106,6 +112,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     debugTextureView.dispose();
     floatingSphere.dispose();
     floatingBoat.dispose();
+    oceanEnvironment.dispose();
     water.dispose();
     cascadeSystem.dispose();
     renderer.dispose();
