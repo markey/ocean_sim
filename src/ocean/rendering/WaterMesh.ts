@@ -3,7 +3,6 @@ import {
   Fn,
   cameraPosition,
   color,
-  cos,
   dot,
   exp,
   float,
@@ -17,7 +16,6 @@ import {
   reflect,
   saturate,
   screenUV,
-  sin,
   texture,
   uniform,
   vec2,
@@ -32,6 +30,8 @@ export type WaterRenderingParameters = {
   refractionStrength: number;
   absorptionStrength: number;
   scatteringStrength: number;
+  crestTranslucency: number;
+  skyHazeStrength: number;
   sparkleStrength: number;
   sparkleSharpness: number;
   foamContrast: number;
@@ -44,21 +44,24 @@ export type WaterRenderingParameters = {
   foamColor: number;
 };
 
+/** Milestone 13 defaults: richer teal palette, stronger crest scatter, sim-driven glitter. */
 export const DEFAULT_WATER_RENDERING_PARAMETERS: WaterRenderingParameters = {
-  fresnelStrength: 1.02,
-  reflectionStrength: 0.76,
-  refractionStrength: 0.22,
-  absorptionStrength: 0.092,
-  scatteringStrength: 0.28,
-  sparkleStrength: 1.22,
-  sparkleSharpness: 0.66,
-  foamContrast: 2,
-  foamBrightness: 0.82,
-  foamStrength: 0.5,
-  deepWaterColor: 0x03384f,
-  shallowWaterColor: 0x1aa9a7,
+  fresnelStrength: 1.08,
+  reflectionStrength: 0.84,
+  refractionStrength: 0.2,
+  absorptionStrength: 0.088,
+  scatteringStrength: 0.42,
+  crestTranslucency: 0.28,
+  skyHazeStrength: 0.72,
+  sparkleStrength: 1.35,
+  sparkleSharpness: 0.58,
+  foamContrast: 2.1,
+  foamBrightness: 0.86,
+  foamStrength: 0.54,
+  deepWaterColor: 0x024a68,
+  shallowWaterColor: 0x1ec4b8,
   skyReflectionColor: 0x9fc5df,
-  subsurfaceColor: 0x50d4bd,
+  subsurfaceColor: 0x5ee8cc,
   foamColor: 0xe8f2ee,
 };
 
@@ -83,6 +86,12 @@ export class WaterMesh {
   );
   private readonly scatteringStrengthUniform = uniform(
     DEFAULT_WATER_RENDERING_PARAMETERS.scatteringStrength,
+  );
+  private readonly crestTranslucencyUniform = uniform(
+    DEFAULT_WATER_RENDERING_PARAMETERS.crestTranslucency,
+  );
+  private readonly skyHazeStrengthUniform = uniform(
+    DEFAULT_WATER_RENDERING_PARAMETERS.skyHazeStrength,
   );
   private readonly sparkleStrengthUniform = uniform(
     DEFAULT_WATER_RENDERING_PARAMETERS.sparkleStrength,
@@ -109,7 +118,6 @@ export class WaterMesh {
   private readonly foamColorUniform = uniform(
     new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.foamColor),
   );
-  private readonly timeUniform = uniform(0);
   private readonly sunDirectionUniform = uniform(new THREE.Vector3(0.52, 0.78, 0.34).normalize());
 
   constructor(surface: OceanSurfaceProvider) {
@@ -124,8 +132,8 @@ export class WaterMesh {
     );
 
     this.material = new THREE.MeshStandardNodeMaterial({
-      color: new THREE.Color(0x075f78),
-      roughness: 0.18,
+      color: new THREE.Color(0x066878),
+      roughness: 0.16,
       metalness: 0.01,
     });
     this.material.flatShading = false;
@@ -135,76 +143,101 @@ export class WaterMesh {
     const patchHalf = this.patchSizeUniform.mul(0.5);
     const foamTex = surface.foamDataTexture;
     const jacobianTex = surface.jacobianDataTexture;
+    const normalTex = surface.normalDataTexture;
     const seaFloorY = float(-24);
 
     this.material.colorNode = Fn(() => {
       const worldNormal = normalWorld;
       const deepWater = this.deepWaterColorUniform;
-      const midWater = color(0x076f84);
+      const midWater = color(0x0a7a8e);
       const shallowWater = this.shallowWaterColorUniform;
-      const refractedWater = color(0x1b8d8a);
-      const skyReflection = this.skyReflectionColorUniform;
+      const refractedWater = color(0x1db8a8);
       const subSurface = this.subsurfaceColorUniform;
       const foamColor = this.foamColorUniform;
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
-      const edgeFacing = oneMinus(saturate(dot(worldNormal, viewDirection)));
-      const fresnel = pow(edgeFacing, float(4.4)).mul(this.fresnelStrengthUniform);
+      const nDotV = saturate(dot(worldNormal, viewDirection));
+
+      // Schlick-style Fresnel: stronger grazing reflections without extra render passes.
+      const fresnelBias = float(0.04);
+      const fresnel = fresnelBias.add(
+        oneMinus(fresnelBias).mul(pow(oneMinus(nDotV), float(5))).mul(this.fresnelStrengthUniform),
+      );
+
       const facing = saturate(worldNormal.y.mul(0.5).add(0.5));
       const slope = oneMinus(facing);
-      const waveShade = pow(saturate(slope), float(0.55));
+      const waveShade = pow(saturate(slope), float(0.48));
       const waterDepth = max(positionWorld.y.sub(seaFloorY), float(0.1));
       const absorption = oneMinus(exp(waterDepth.mul(this.absorptionStrengthUniform).mul(-1)));
       const depthColor = mix(shallowWater, deepWater, saturate(absorption));
-      const baseColor = mix(depthColor, midWater, saturate(waveShade.mul(0.22)));
+      const baseColor = mix(depthColor, midWater, saturate(waveShade.mul(0.28)));
 
-      // Approximate forward subsurface scatter where thin crests face the sun.
       const sunDirection = normalize(vec3(this.sunDirectionUniform));
-      const sunFacing = pow(saturate(dot(worldNormal, sunDirection)), float(2.6));
+      const sunFacing = pow(saturate(dot(worldNormal, sunDirection)), float(2.2));
       const crestScatter = sunFacing.mul(waveShade).mul(this.scatteringStrengthUniform);
       const scattered = mix(baseColor, subSurface, saturate(crestScatter));
 
-      // Screen-space refraction is a lightweight placeholder: distort the opaque viewport
-      // by the simulated normal, then attenuate it by the same water-column absorption.
-      const refractUv = screenUV.add(
-        worldNormal.xz.mul(this.refractionStrengthUniform).mul(float(0.028)),
-      );
-      const refractedScene = viewportSharedTexture(refractUv).rgb;
-      const refracted = mix(refractedScene, refractedWater, saturate(absorption.mul(0.75)));
-      const reflectionVector = reflect(viewDirection.mul(float(-1)), worldNormal);
-      const skyFacing = pow(saturate(reflectionVector.y.mul(0.5).add(0.5)), float(0.58));
-      const horizonReflection = mix(skyReflection, color(0xf4d6af), saturate(edgeFacing.mul(0.45)));
-      const reflectedSky = mix(horizonReflection, color(0x547eaa), skyFacing);
-      const reflected = mix(
-        mix(scattered, refracted, this.refractionStrengthUniform.mul(0.32)),
-        reflectedSky,
-        saturate(fresnel.mul(this.reflectionStrengthUniform)),
-      );
-
-      const sunReflection = reflect(sunDirection.mul(float(-1)), worldNormal);
-      const glintPower = mix(float(140), float(520), saturate(this.sparkleSharpnessUniform));
-      const glintBase = pow(saturate(dot(sunReflection, viewDirection)), glintPower);
-      const crestMicroFacet = pow(saturate(slope.mul(float(2.4))), float(3.2));
-      const simulatedFacetBreakup = pow(
-        saturate(
-          sin(positionWorld.x.mul(17).add(this.timeUniform.mul(3.1)))
-            .mul(cos(positionWorld.z.mul(21).sub(this.timeUniform.mul(2.7))))
-            .mul(0.5)
-            .add(0.5),
-        ),
-        float(9),
-      );
-      const sparkle = glintBase
-        .mul(mix(crestMicroFacet, crestMicroFacet.mul(simulatedFacetBreakup), float(0.35)))
-        .mul(this.sparkleStrengthUniform);
-
-      // World XZ → simulation UV (repeat-wrapped foam field).
       const foamUv = vec2(
         positionWorld.x.add(patchHalf).div(this.patchSizeUniform),
         positionWorld.z.add(patchHalf).div(this.patchSizeUniform),
       );
-      const accumulatedFoam = texture(foamTex, foamUv).r;
+      const simulatedNormalSample = texture(normalTex, foamUv);
+      const simulatedNormal = normalize(
+        simulatedNormalSample.rgb.mul(2).sub(1),
+      );
+      const simSlope = oneMinus(saturate(simulatedNormal.y));
       const jacobianSample = texture(jacobianTex, foamUv);
       const compression = jacobianSample.g;
+
+      const refractUv = screenUV.add(
+        simulatedNormal.xz.mul(this.refractionStrengthUniform).mul(float(0.026)),
+      );
+      const refractedScene = viewportSharedTexture(refractUv).rgb;
+      const refracted = mix(refractedScene, refractedWater, saturate(absorption.mul(0.72)));
+      const reflectionVector = reflect(viewDirection.mul(float(-1)), worldNormal);
+      const skyDir = normalize(reflectionVector);
+      const skyHeight = saturate(skyDir.y.mul(0.58).add(0.42));
+      const skyHorizon = color(0xc8d4d8);
+      const skyLow = color(0x86aed4);
+      const skyZenith = color(0x2459a8);
+      const skyWarmHaze = color(0xf5e0bc);
+      const skyGradient = mix(
+        mix(skyHorizon, skyLow, skyHeight),
+        skyZenith,
+        pow(skyHeight, float(1.72)),
+      );
+      const skySunAlignment = pow(saturate(dot(skyDir, sunDirection)), float(42));
+      const skyHorizonHaze = pow(saturate(float(1).sub(skyHeight)), float(2.15)).mul(
+        this.skyHazeStrengthUniform,
+      );
+      const reflectedSky = mix(
+        skyGradient,
+        skyWarmHaze,
+        saturate(skyHorizonHaze.add(skySunAlignment.mul(0.62))),
+      );
+      const skyTint = this.skyReflectionColorUniform;
+      const reflected = mix(
+        mix(scattered, refracted, this.refractionStrengthUniform.mul(0.3)),
+        mix(reflectedSky, skyTint, float(0.12)),
+        saturate(fresnel.mul(this.reflectionStrengthUniform)),
+      );
+
+      // Sun glitter from simulated normals, slope, and Jacobian compression (no scrolling noise).
+      const sunReflection = reflect(sunDirection.mul(float(-1)), worldNormal);
+      const glintPower = mix(float(120), float(480), saturate(this.sparkleSharpnessUniform));
+      const glintBase = pow(saturate(dot(sunReflection, viewDirection)), glintPower);
+      const crestFacet = pow(saturate(simSlope.mul(float(2.8))), float(2.4));
+      const foldSparkle = pow(saturate(compression.mul(float(2.4))), float(3.6));
+      const normalSparkle = pow(
+        saturate(
+          dot(simulatedNormal, sunDirection).mul(simSlope).add(saturate(simulatedNormal.y)),
+        ),
+        float(4.2),
+      );
+      const sparkle = glintBase
+        .mul(crestFacet.mul(0.55).add(foldSparkle.mul(0.35)).add(normalSparkle.mul(0.22)))
+        .mul(this.sparkleStrengthUniform);
+
+      const accumulatedFoam = texture(foamTex, foamUv).r;
       const instantFoam = pow(saturate(compression.mul(float(2.15))), float(2.75));
       const rawFoam = max(
         pow(saturate(accumulatedFoam), float(1.35)).mul(float(0.72)),
@@ -217,25 +250,28 @@ export class WaterMesh {
         .mul(this.foamStrengthUniform)
         .mul(pow(saturate(worldNormal.y), float(0.45)));
 
-      return mix(reflected.add(color(0xf5fbff).mul(sparkle)), litFoam, saturate(foamMask));
+      const crestGlow = subSurface.mul(crestScatter.mul(0.35));
+      return mix(reflected.add(color(0xf8fdff).mul(sparkle)).add(crestGlow), litFoam, saturate(foamMask));
     })();
 
     this.material.roughnessNode = Fn(() => {
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
       const fresnel = oneMinus(saturate(dot(normalWorld, viewDirection)));
       return mix(
-        float(0.32),
-        float(0.07),
-        saturate(fresnel.add(this.sparkleStrengthUniform.mul(0.18))),
+        float(0.3),
+        float(0.06),
+        saturate(fresnel.add(this.sparkleStrengthUniform.mul(0.16))),
       );
     })();
     this.material.opacityNode = Fn(() => {
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
       const fresnel = pow(oneMinus(saturate(dot(normalWorld, viewDirection))), float(3));
+      const crestFacing = oneMinus(saturate(normalWorld.y));
+      const translucency = crestFacing.mul(this.crestTranslucencyUniform);
       return mix(
-        float(0.88),
-        float(0.97),
-        saturate(fresnel.add(this.fresnelStrengthUniform.mul(0.2))),
+        float(0.86),
+        float(0.98),
+        saturate(fresnel.add(this.fresnelStrengthUniform.mul(0.18)).add(translucency)),
       );
     })();
     this.material.backdropNode = Fn(() => {
@@ -296,8 +332,7 @@ export class WaterMesh {
     void renderer;
   }
 
-  updateRendering(timeSeconds: number, sunDirection: THREE.Vector3): void {
-    this.timeUniform.value = timeSeconds;
+  updateRendering(sunDirection: THREE.Vector3): void {
     this.sunDirectionUniform.value.copy(sunDirection).normalize();
   }
 
@@ -362,6 +397,12 @@ export class WaterMesh {
     }
     if (next.scatteringStrength !== undefined) {
       this.scatteringStrengthUniform.value = next.scatteringStrength;
+    }
+    if (next.crestTranslucency !== undefined) {
+      this.crestTranslucencyUniform.value = next.crestTranslucency;
+    }
+    if (next.skyHazeStrength !== undefined) {
+      this.skyHazeStrengthUniform.value = next.skyHazeStrength;
     }
     if (next.sparkleStrength !== undefined) {
       this.sparkleStrengthUniform.value = next.sparkleStrength;

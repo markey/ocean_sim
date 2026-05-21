@@ -25,6 +25,18 @@ export const BENCHMARK_LAYOUT = {
     sunGlowStrength: 0.82,
     exposure: 1.08,
   },
+  /** Windier open-ocean tuning for benchmark screenshots (Milestone 13). */
+  seaState: {
+    windSpeed: 16,
+    choppiness: 0.56,
+    swellChoppiness: 0.3,
+    detailChoppiness: 0.44,
+    swellAmplitudeScale: 1.05,
+    detailAmplitudeScale: 2.8,
+    foamThreshold: 0.17,
+    foamAccumulationRate: 1.28,
+    foamCoverage: 1.12,
+  },
 } as const;
 
 export function applyBenchmarkCamera(

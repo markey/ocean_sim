@@ -169,7 +169,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     water.update(renderer, surface);
     const elapsedSeconds = clock.elapsedTime;
     oceanEnvironment.update(camera, elapsedSeconds);
-    water.updateRendering(elapsedSeconds, oceanEnvironment.getSunDirection());
+    water.updateRendering(oceanEnvironment.getSunDirection());
     floatingBuoy.update(deltaSeconds, surface);
     floatingBoat.update(deltaSeconds, surface);
     controls.update();

@@ -1,6 +1,6 @@
 # Spectral Ocean Simulation
 
-Milestone 12 adds procedural cloud bands, shader-based sun glow, warmer sun/cooler zenith sky defaults, and stronger horizon fog integration. Milestone 11 benchmark composition (hero boat, buoy, islands, screenshot mode) remains. Planned Milestones 13–14 target water material tuning and contact foam.
+Milestone 13 polishes the TSL water material: richer teal palette, crest subsurface scatter and translucency, simulation-driven sun glitter, analytic sky-dome reflections, and windier benchmark sea-state defaults. Milestone 12 sky/atmosphere and Milestone 11 benchmark composition remain. Milestone 14 will add contact foam and crest polish.
 
 ## Run
 
@@ -57,6 +57,17 @@ Use the **Benchmark scene** GUI folder:
 - **Screenshot mode (H)** hides the debug panel and FPS readout for clean captures.
 
 Press **H** at any time to toggle screenshot mode.
+
+## Milestone 13 Water Color, Glitter, And Reflections
+
+Use the **Surface polish** and **Rendering** GUI folders:
+
+- **Deep / shallow / subsurface colors** — richer teal water palette.
+- **Sun glitter / glitter sharpness** — driven by simulated normals, slopes, and Jacobian compression (no decorative wave noise).
+- **Fresnel / sky reflection / reflection haze** — Schlick Fresnel plus direction-based analytic sky sampling (matches the sky dome gradient).
+- **Crest translucency / subsurface** — brighter crests and slight translucency on steep faces.
+
+**Benchmark scene → Apply full preset** restores Milestone 13 water defaults, sky/atmosphere, camera, and a windier open-ocean sea state (higher choppiness, cascade mix, foam deposit thresholds). Press **H** for screenshot mode.
 
 ## Milestone 12 Sky And Atmosphere
 

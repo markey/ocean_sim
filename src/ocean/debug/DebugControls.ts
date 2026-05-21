@@ -149,7 +149,14 @@ export class DebugControls {
       rendering: {
         ...DEFAULT_WATER_RENDERING_PARAMETERS,
         ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,
-        exposure: 1.08,
+        sunAzimuthDegrees: BENCHMARK_LAYOUT.sun.azimuthDegrees,
+        sunElevationDegrees: BENCHMARK_LAYOUT.sun.elevationDegrees,
+        sunIntensity: BENCHMARK_LAYOUT.sun.intensity,
+        horizonHaze: BENCHMARK_LAYOUT.sun.horizonHaze,
+        cloudStrength: BENCHMARK_LAYOUT.sun.cloudStrength,
+        sunGlowStrength: BENCHMARK_LAYOUT.sun.sunGlowStrength,
+        skyHazeStrength: BENCHMARK_LAYOUT.sun.horizonHaze,
+        exposure: BENCHMARK_LAYOUT.sun.exposure,
       },
       buoyancy: {
         ...DEFAULT_BUOYANCY_PARAMETERS,
@@ -356,6 +363,22 @@ export class DebugControls {
       benchmarkTargets?.setExposure(this.state.rendering.exposure);
     };
 
+    const applyBenchmarkSeaState = () => {
+      const sea = BENCHMARK_LAYOUT.seaState;
+      this.state.windSpeed = sea.windSpeed;
+      this.state.cascades.mid.choppiness = sea.choppiness;
+      this.state.cascades.swell.choppiness = sea.swellChoppiness;
+      this.state.cascades.detail.choppiness = sea.detailChoppiness;
+      this.state.foam.threshold = sea.foamThreshold;
+      this.state.foam.accumulationRate = sea.foamAccumulationRate;
+      this.state.foam.coverage = sea.foamCoverage;
+      syncGlobalSpectrum();
+      cascadeSystem.setCascadeParameters('mid', { choppiness: sea.choppiness });
+      cascadeSystem.setCascadeParameters('swell', { choppiness: sea.swellChoppiness });
+      cascadeSystem.setCascadeParameters('detail', { choppiness: sea.detailChoppiness });
+      syncFoam();
+    };
+
     const applyQualityPreset = (id: QualityPresetId) => {
       const preset = QUALITY_PRESETS[id];
       this.state.qualityPreset = id;
@@ -394,24 +417,29 @@ export class DebugControls {
         {
           applyPreset: () => {
             this.state.preset = 'openOcean';
-            this.applyPreset(OCEAN_PRESETS.openOcean);
-            this.state.rendering.horizonHaze = BENCHMARK_LAYOUT.sun.horizonHaze;
-            this.state.rendering.cloudStrength = BENCHMARK_LAYOUT.sun.cloudStrength;
-            this.state.rendering.sunGlowStrength = BENCHMARK_LAYOUT.sun.sunGlowStrength;
-            this.state.rendering.sunAzimuthDegrees = BENCHMARK_LAYOUT.sun.azimuthDegrees;
-            this.state.rendering.sunElevationDegrees = BENCHMARK_LAYOUT.sun.elevationDegrees;
-            this.state.rendering.sunIntensity = BENCHMARK_LAYOUT.sun.intensity;
-            this.state.rendering.exposure = BENCHMARK_LAYOUT.sun.exposure;
-            this.state.rendering.fresnelStrength = DEFAULT_WATER_RENDERING_PARAMETERS.fresnelStrength;
-            this.state.rendering.reflectionStrength =
-              DEFAULT_WATER_RENDERING_PARAMETERS.reflectionStrength;
-            this.state.rendering.sparkleStrength =
-              DEFAULT_WATER_RENDERING_PARAMETERS.sparkleStrength;
-            this.state.rendering.sparkleSharpness =
-              DEFAULT_WATER_RENDERING_PARAMETERS.sparkleSharpness;
-            this.state.rendering.foamStrength = DEFAULT_WATER_RENDERING_PARAMETERS.foamStrength;
-            this.state.rendering.foamContrast = DEFAULT_WATER_RENDERING_PARAMETERS.foamContrast;
-            this.state.rendering.foamBrightness = DEFAULT_WATER_RENDERING_PARAMETERS.foamBrightness;
+            const openOcean = OCEAN_PRESETS.openOcean;
+            this.applyPreset({
+              ...openOcean,
+              windSpeed: BENCHMARK_LAYOUT.seaState.windSpeed,
+              choppiness: BENCHMARK_LAYOUT.seaState.choppiness,
+              swellAmplitudeScale: BENCHMARK_LAYOUT.seaState.swellAmplitudeScale,
+              detailAmplitudeScale: BENCHMARK_LAYOUT.seaState.detailAmplitudeScale,
+            });
+            applyBenchmarkSeaState();
+            this.state.rendering = {
+              ...this.state.rendering,
+              ...DEFAULT_WATER_RENDERING_PARAMETERS,
+              ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,
+              horizonHaze: BENCHMARK_LAYOUT.sun.horizonHaze,
+              cloudStrength: BENCHMARK_LAYOUT.sun.cloudStrength,
+              sunGlowStrength: BENCHMARK_LAYOUT.sun.sunGlowStrength,
+              sunAzimuthDegrees: BENCHMARK_LAYOUT.sun.azimuthDegrees,
+              sunElevationDegrees: BENCHMARK_LAYOUT.sun.elevationDegrees,
+              sunIntensity: BENCHMARK_LAYOUT.sun.intensity,
+              exposure: BENCHMARK_LAYOUT.sun.exposure,
+              skyHazeStrength: BENCHMARK_LAYOUT.sun.horizonHaze,
+            };
+            this.state.foam.renderStrength = DEFAULT_WATER_RENDERING_PARAMETERS.foamStrength;
             syncWaterRendering();
             benchmarkTargets?.applyBenchmarkView();
             refreshGuiDisplays(this.gui);
@@ -497,6 +525,16 @@ export class DebugControls {
       .decimals(2)
       .onChange(syncWaterRendering);
     renderingFolder
+      .add(this.state.rendering, 'crestTranslucency', 0, 0.6, 0.01)
+      .name('Crest translucency')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
+      .add(this.state.rendering, 'skyHazeStrength', 0, 1, 0.01)
+      .name('Reflection haze')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    renderingFolder
       .add(this.state.rendering, 'sparkleStrength', 0, 1.8, 0.01)
       .name('Sparkle')
       .decimals(2)
@@ -578,6 +616,26 @@ export class DebugControls {
       });
 
     const surfacePolishFolder = this.gui.addFolder('Surface polish');
+    surfacePolishFolder
+      .add(this.state.rendering, 'sparkleStrength', 0, 2, 0.01)
+      .name('Sun glitter')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .add(this.state.rendering, 'sparkleSharpness', 0, 1, 0.01)
+      .name('Glitter sharpness')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .add(this.state.rendering, 'fresnelStrength', 0, 1.5, 0.01)
+      .name('Fresnel')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .add(this.state.rendering, 'reflectionStrength', 0, 1.5, 0.01)
+      .name('Sky reflection')
+      .decimals(2)
+      .onChange(syncWaterRendering);
     surfacePolishFolder
       .add(this.state.rendering, 'foamStrength', 0, 1.5, 0.01)
       .name('Foam blend')
