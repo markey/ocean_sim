@@ -22,7 +22,7 @@ npm run build
 
 - `src/ocean/spectrum` — Phillips and JONSWAP initial spectra, directional spreading, and named presets.
 - `src/ocean/simulation/OceanSimulation` — single-band spectral evolution, CPU inverse FFT, displacement/normal/Jacobian textures.
-- `src/ocean/simulation/OceanCascadeSystem` — three `OceanSimulation` instances merged in world space; drives `FoamAccumulator` from combined Jacobian.
+- `src/ocean/simulation/OceanCascadeSystem` — three `OceanSimulation` instances merged in world space; drives `FoamAccumulator` from combined Jacobian. Default visible patch is **640×640 m** tiled from a **160 m** mid-band FFT sim (same sim cost, no choppy-displacement folding).
 - `src/ocean/foam` — persistent crest foam accumulation and decay (`FoamAccumulator`).
 - `src/ocean/buoyancy` — bilinear surface sampling API, floating buoy, hero boat hull, and legacy debug sphere.
 - `src/ocean/fft` — separable inverse FFT module for a future GPU-only path.

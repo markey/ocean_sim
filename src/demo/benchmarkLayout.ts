@@ -3,18 +3,18 @@ import * as THREE from 'three/webgpu';
 /** Repeatable benchmark camera, prop placement, and lighting for Water Pro-style screenshots. */
 export const BENCHMARK_LAYOUT = {
   camera: {
-    position: new THREE.Vector3(48, 7.2, 72),
-    target: new THREE.Vector3(-4, 2.8, -24),
+    position: new THREE.Vector3(62, 6.5, 118),
+    target: new THREE.Vector3(8, 2.2, -55),
   },
   boat: {
-    position: new THREE.Vector3(-2, 5, -20),
+    position: new THREE.Vector3(0, 5, -18),
     length: 17,
     width: 5.2,
     draft: 1.35,
     mass: 920,
   },
   buoy: {
-    position: new THREE.Vector3(-68, 4, -82),
+    position: new THREE.Vector3(-78, 4, -98),
   },
   sun: {
     azimuthDegrees: 212,

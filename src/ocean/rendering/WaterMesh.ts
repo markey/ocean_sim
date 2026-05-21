@@ -67,7 +67,7 @@ export class WaterMesh {
   readonly material: THREE.MeshStandardNodeMaterial;
   private readonly basePositions: Float32Array;
   private readonly resolution: number;
-  private readonly patchSizeUniform = uniform(160);
+  private readonly patchSizeUniform = uniform(640);
   private readonly foamStrengthUniform = uniform(DEFAULT_WATER_RENDERING_PARAMETERS.foamStrength);
   private readonly fresnelStrengthUniform = uniform(
     DEFAULT_WATER_RENDERING_PARAMETERS.fresnelStrength,

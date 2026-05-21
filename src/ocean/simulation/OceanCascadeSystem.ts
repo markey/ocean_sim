@@ -138,8 +138,8 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   private readonly mergeHeights: Float32Array;
   private readonly mergeDisplacementX: Float32Array;
   private readonly mergeDisplacementZ: Float32Array;
-  /** World-grid displacement for bands that run at lower resolution than mid. */
-  private readonly upsampledDisplacement: Record<'swell' | 'detail', Float32Array>;
+  /** World-grid displacement resampled from each cascade tile onto the visible patch. */
+  private readonly upsampledDisplacement: Record<CascadeId, Float32Array>;
   private frameIndex = 0;
   private renderer: THREE.WebGPURenderer | null = null;
 
@@ -162,6 +162,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     this.mergeDisplacementZ = new Float32Array(vertexCount);
     this.upsampledDisplacement = {
       swell: new Float32Array(vertexCount * 4),
+      mid: new Float32Array(vertexCount * 4),
       detail: new Float32Array(vertexCount * 4),
     };
 
@@ -213,7 +214,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
       this.cascades[id].update(renderer, 0, { computeAuxiliaryFields: false });
     }
 
-    this.refreshUpsampledBands(['swell', 'detail']);
+    this.refreshUpsampledBands(CASCADE_IDS);
     this.mergeCascadeFields();
     this.syncGpuTextures(renderer);
   }
@@ -239,7 +240,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
       this.cascades[id].setParameters(this.buildCascadeSimulationParameters(id));
     }
 
-    this.refreshUpsampledBands(['swell', 'detail']);
+    this.refreshUpsampledBands(CASCADE_IDS);
     this.mergeCascadeFields();
   }
 
@@ -300,7 +301,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   setCascadeParameters(id: CascadeId, next: Partial<CascadeConfig>): void {
     Object.assign(this.systemParameters.cascades[id], next);
     this.cascades[id].setParameters(this.buildCascadeSimulationParameters(id));
-    if (id === 'swell' || id === 'detail') {
+    if (id === 'swell' || id === 'detail' || id === 'mid') {
       this.refreshUpsampledBands([id]);
     }
   }
@@ -312,6 +313,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     // Mid band drives the primary sea surface every frame.
     if (cascades.mid.enabled) {
       this.cascades.mid.update(renderer, deltaSeconds, { computeAuxiliaryFields: false });
+      this.refreshUpsampledBands(['mid']);
     }
 
     // Alternate low-res bands to keep frame cost closer to a single 256² simulation.
@@ -340,11 +342,15 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     this.foam.dispose();
   }
 
-  private refreshUpsampledBands(ids: Array<'swell' | 'detail'>): void {
+  private refreshUpsampledBands(ids: CascadeId[]): void {
     const { resolution, worldPatchSize } = this.systemParameters;
 
     for (const id of ids) {
       const cascade = this.systemParameters.cascades[id];
+      if (!cascade.enabled) {
+        continue;
+      }
+
       const source = this.cascades[id].displacementDataTexture.image.data as Float32Array;
 
       upsampleDisplacementField(
@@ -403,9 +409,7 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     this.mergeDisplacementZ.fill(0);
 
     if (cascades.mid.enabled) {
-      this.accumulateDisplacementField(
-        this.cascades.mid.displacementDataTexture.image.data as Float32Array,
-      );
+      this.accumulateDisplacementField(this.upsampledDisplacement.mid);
     }
 
     if (cascades.swell.enabled) {

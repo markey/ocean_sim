@@ -114,7 +114,8 @@ export const DEFAULT_CASCADE_CONFIGS: Record<CascadeId, CascadeConfig> = {
 
 export function createDefaultCascadeSystemParameters(): OceanCascadeSystemParameters {
   return {
-    worldPatchSize: 160,
+    /** Visible water mesh extent in meters (FFT sim tiles periodically over this area). */
+    worldPatchSize: 640,
     /** Output / mid-band resolution; swell and detail may use lower internal grids. */
     resolution: DEFAULT_CASCADE_CONFIGS.mid.resolution,
     gravity: 9.81,

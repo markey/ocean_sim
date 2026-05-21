@@ -41,7 +41,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   controls.target.copy(BENCHMARK_LAYOUT.camera.target);
   controls.maxPolarAngle = Math.PI * 0.72;
   controls.minDistance = 12;
-  controls.maxDistance = 280;
+  controls.maxDistance = 420;
 
   const sun = new THREE.DirectionalLight(0xfff0d0, BENCHMARK_LAYOUT.sun.intensity);
   sun.position.set(-98, 60, -104);
