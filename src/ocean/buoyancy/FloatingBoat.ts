@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
+import { buildHeroBoatVisual } from './buildHeroBoatVisual';
 import { followTargetHeight, integrateVerticalBuoyancy } from './buoyancyIntegration';
 import { sampleOceanSurfacePoint } from './OceanSurfaceSampler';
 import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from './types';
@@ -73,37 +74,15 @@ export class FloatingBoat {
 
     this.group = new THREE.Group();
     this.group.name = 'Floating Boat';
-
-    const hull = new THREE.Mesh(
-      new THREE.BoxGeometry(this.length, this.draft * 1.6, this.width),
-      new THREE.MeshStandardMaterial({
-        color: options.hullColor ?? 0x6d3f2a,
-        roughness: 0.72,
-        metalness: 0.02,
+    this.group.add(
+      buildHeroBoatVisual({
+        length: this.length,
+        width: this.width,
+        draft: this.draft,
+        hullColor: options.hullColor,
+        cabinColor: options.deckColor,
       }),
     );
-    hull.position.y = -this.draft * 0.55;
-    hull.name = 'Boat Hull';
-
-    const deck = new THREE.Mesh(
-      new THREE.BoxGeometry(this.length * 0.72, 0.35, this.width * 0.55),
-      new THREE.MeshStandardMaterial({
-        color: options.deckColor ?? 0xc9b59a,
-        roughness: 0.55,
-        metalness: 0.04,
-      }),
-    );
-    deck.position.set(0, 0.25, 0);
-    deck.name = 'Boat Deck';
-
-    const mast = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.12, 0.16, 5.5, 10),
-      new THREE.MeshStandardMaterial({ color: 0xddd5c8, roughness: 0.6 }),
-    );
-    mast.position.set(-this.length * 0.08, 3.1, 0);
-    mast.name = 'Boat Mast';
-
-    this.group.add(hull, deck, mast);
     this.syncGroupTransform();
   }
 

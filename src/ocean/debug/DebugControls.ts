@@ -1,6 +1,7 @@
 import GUI from 'lil-gui';
+import { BENCHMARK_LAYOUT } from '../../demo/benchmarkLayout';
 import type { FloatingBoat } from '../buoyancy/FloatingBoat';
-import type { FloatingSphere } from '../buoyancy/FloatingSphere';
+import type { FloatingBuoy } from '../buoyancy/FloatingBuoy';
 import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from '../buoyancy/types';
 import { OCEAN_PRESETS, OCEAN_PRESET_IDS } from '../spectrum/presets';
 import type { OceanPreset, OceanPresetId } from '../spectrum/types';
@@ -34,13 +35,13 @@ type DebugGuiState = OceanCascadeSystemParameters & {
   foam: FoamParameters & { renderStrength: number };
   rendering: WaterRenderingParameters & OceanEnvironmentParameters & { exposure: number };
   buoyancy: BuoyancyParameters & {
-    sphereEnabled: boolean;
+    buoyEnabled: boolean;
     boatEnabled: boolean;
   };
 };
 
 export type BuoyancyDebugTargets = {
-  sphere: FloatingSphere;
+  buoy: FloatingBuoy;
   boat: FloatingBoat;
 };
 
@@ -51,6 +52,7 @@ export type BenchmarkDebugTargets = {
   setExposure: (exposure: number) => void;
   setPixelRatioCap: (pixelRatioCap: number) => void;
   setQualityPresetLabel: (label: string) => void;
+  toggleScreenshotMode: () => void;
 };
 
 type QualityPresetId = 'low' | 'medium' | 'high';
@@ -151,7 +153,7 @@ export class DebugControls {
       },
       buoyancy: {
         ...DEFAULT_BUOYANCY_PARAMETERS,
-        sphereEnabled: true,
+        buoyEnabled: true,
         boatEnabled: true,
       },
     };
@@ -393,11 +395,11 @@ export class DebugControls {
           applyPreset: () => {
             this.state.preset = 'openOcean';
             this.applyPreset(OCEAN_PRESETS.openOcean);
-            this.state.rendering.horizonHaze = 0.58;
-            this.state.rendering.sunAzimuthDegrees = 238;
-            this.state.rendering.sunElevationDegrees = 22;
-            this.state.rendering.sunIntensity = 3.15;
-            this.state.rendering.exposure = 1.04;
+            this.state.rendering.horizonHaze = BENCHMARK_LAYOUT.sun.horizonHaze;
+            this.state.rendering.sunAzimuthDegrees = BENCHMARK_LAYOUT.sun.azimuthDegrees;
+            this.state.rendering.sunElevationDegrees = BENCHMARK_LAYOUT.sun.elevationDegrees;
+            this.state.rendering.sunIntensity = BENCHMARK_LAYOUT.sun.intensity;
+            this.state.rendering.exposure = BENCHMARK_LAYOUT.sun.exposure;
             this.state.rendering.fresnelStrength = DEFAULT_WATER_RENDERING_PARAMETERS.fresnelStrength;
             this.state.rendering.reflectionStrength =
               DEFAULT_WATER_RENDERING_PARAMETERS.reflectionStrength;
@@ -442,6 +444,16 @@ export class DebugControls {
         'overview',
       )
       .name('Overview camera');
+    benchmarkFolder
+      .add(
+        {
+          screenshotMode: () => {
+            benchmarkTargets?.toggleScreenshotMode();
+          },
+        },
+        'screenshotMode',
+      )
+      .name('Screenshot mode (H)');
     benchmarkFolder.open();
 
     const qualityFolder = this.gui.addFolder('Quality');
@@ -591,19 +603,19 @@ export class DebugControls {
     syncWaterRendering();
 
     if (buoyancyTargets) {
-      const { sphere, boat } = buoyancyTargets;
+      const { buoy, boat } = buoyancyTargets;
       const syncBuoyancy = () => {
-        const { sphereEnabled, boatEnabled, ...params } = this.state.buoyancy;
-        Object.assign(sphere.buoyancy, params);
+        const { buoyEnabled, boatEnabled, ...params } = this.state.buoyancy;
+        Object.assign(buoy.buoyancy, params);
         Object.assign(boat.buoyancy, params);
-        sphere.enabled = sphereEnabled;
+        buoy.enabled = buoyEnabled;
         boat.enabled = boatEnabled;
       };
 
       const buoyancyFolder = this.gui.addFolder('Buoyancy');
       buoyancyFolder
-        .add(this.state.buoyancy, 'sphereEnabled')
-        .name('Sphere')
+        .add(this.state.buoyancy, 'buoyEnabled')
+        .name('Buoy')
         .onChange(syncBuoyancy);
       buoyancyFolder.add(this.state.buoyancy, 'boatEnabled').name('Boat').onChange(syncBuoyancy);
       buoyancyFolder
@@ -631,13 +643,19 @@ export class DebugControls {
       buoyancyFolder
         .add(
           {
-            resetSphere: () => sphere.reset(),
-            resetBoat: () => boat.reset(),
+            resetBuoy: () => buoy.reset(BENCHMARK_LAYOUT.buoy.position.clone()),
           },
-          'resetSphere',
+          'resetBuoy',
         )
-        .name('Reset sphere');
-      buoyancyFolder.add({ resetBoat: () => boat.reset() }, 'resetBoat').name('Reset boat');
+        .name('Reset buoy');
+      buoyancyFolder
+        .add(
+          {
+            resetBoat: () => boat.reset(BENCHMARK_LAYOUT.boat.position.clone()),
+          },
+          'resetBoat',
+        )
+        .name('Reset boat');
       syncBuoyancy();
     }
 
@@ -674,6 +692,14 @@ export class DebugControls {
     water.setPatchSize(parameters.worldPatchSize);
     this.applyPreset(OCEAN_PRESETS[this.state.preset]);
     applyQualityPreset(this.state.qualityPreset);
+  }
+
+  getDebugView(): DebugTextureMode {
+    return this.state.debugView;
+  }
+
+  setVisible(visible: boolean): void {
+    this.gui.domElement.style.display = visible ? '' : 'none';
   }
 
   dispose(): void {

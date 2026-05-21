@@ -6,5 +6,6 @@ export {
 } from './OceanSurfaceSampler';
 export { followTargetHeight, integrateVerticalBuoyancy } from './buoyancyIntegration';
 export { FloatingBoat, type FloatingBoatOptions } from './FloatingBoat';
+export { FloatingBuoy, type FloatingBuoyOptions } from './FloatingBuoy';
 export { FloatingSphere, type FloatingSphereOptions } from './FloatingSphere';
 export { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from './types';

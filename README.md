@@ -1,6 +1,6 @@
 # Spectral Ocean Simulation
 
-Milestone 10 adds underwater polish, camera bookmarks, and practical quality presets on top of the existing spectral simulation. Low/Medium/High presets tune pixel ratio, cascade enablement, foam, refraction, sparkle, caustics, and underwater particles; underwater mode now blends across the waterline instead of snapping atmosphere abruptly. Milestone 9 surface polish, Milestone 8 benchmark scene lighting, Milestone 7 water rendering, buoyancy, crest foam, cascades, JONSWAP presets, and debug texture views remain. Planned Milestones 11–14 (see `docs/OCEAN_SIM_PROJECT_BRIEF.md`) target achievable Water Pro–style polish: benchmark composition, sky/atmosphere, water material tuning, and contact foam — without raytracing or full-scene reflection passes.
+Milestone 11 adds a composed benchmark scene: stylized hero boat, floating channel buoy, palm-topped horizon islands, retuned waterline camera and sun framing, and a screenshot mode that hides the debug UI. Milestone 10 underwater polish, quality presets, and camera bookmarks remain. Planned Milestones 12–14 (see `docs/OCEAN_SIM_PROJECT_BRIEF.md`) target sky/atmosphere, water material tuning, and contact foam — without raytracing or full-scene reflection passes.
 
 ## Run
 
@@ -24,11 +24,11 @@ npm run build
 - `src/ocean/simulation/OceanSimulation` — single-band spectral evolution, CPU inverse FFT, displacement/normal/Jacobian textures.
 - `src/ocean/simulation/OceanCascadeSystem` — three `OceanSimulation` instances merged in world space; drives `FoamAccumulator` from combined Jacobian.
 - `src/ocean/foam` — persistent crest foam accumulation and decay (`FoamAccumulator`).
-- `src/ocean/buoyancy` — bilinear surface sampling API, floating sphere, and multi-point boat hull.
+- `src/ocean/buoyancy` — bilinear surface sampling API, floating buoy, hero boat hull, and legacy debug sphere.
 - `src/ocean/fft` — separable inverse FFT module for a future GPU-only path.
-- `src/ocean/rendering` — water mesh displaced and shaded from combined cascade textures plus foam map; Milestone 10 waterline/underwater polish, Milestone 9 surface polish, and Milestone 8 benchmark sky/horizon environment.
+- `src/ocean/rendering` — water mesh displaced and shaded from combined cascade textures plus foam map; Milestone 11 benchmark islands, Milestone 10 waterline/underwater polish, Milestone 9 surface polish, and Milestone 8 benchmark sky/horizon environment.
 - `src/ocean/debug` — lil-gui controls (global, per-cascade, foam, buoyancy) and a camera-attached texture preview.
-- `src/demo` — WebGPU scene, orbit camera, stats panel, floating bodies.
+- `src/demo` — WebGPU scene, orbit camera, stats panel, benchmark layout, floating boat and buoy.
 
 ## GPU Data Flow
 
@@ -42,12 +42,29 @@ npm run build
 
 Compute kernels for spectrum upload and evolution remain wired per cascade for a future GPU-only update path.
 
-## Milestone 8 Benchmark
+## Milestone 11 Benchmark Composition
 
-Use the **Benchmark scene** GUI folder to return to the saved Water Pro-style comparison view:
+The default startup view uses the Milestone 11 benchmark layout:
+
+- **Hero boat** — stylized low-poly fishing boat at the waterline (buoyancy-driven).
+- **Floating buoy** — yellow/black channel marker in the mid-ground for scale.
+- **Horizon islands** — rocky silhouettes with low-poly palm cues.
+- **Benchmark camera** — low waterline framing aligned with the Water Pro comparison goal.
+
+Use the **Benchmark scene** GUI folder:
+
+- **Apply camera** / **Apply full preset** restore the Milestone 11 layout.
+- **Screenshot mode (H)** hides the debug panel and FPS readout for clean captures.
+
+Press **H** at any time to toggle screenshot mode.
+
+## Milestone 8–10 Benchmark And Quality
+
+Use the **Benchmark scene** GUI folder for saved views:
 
 - **Apply camera** restores the low waterline camera.
 - **Apply full preset** restores the open-ocean sea state, lighting, haze, exposure, and camera.
+- **Underwater view** and **Overview camera** switch bookmarked shots.
 - The **Rendering** folder includes sun azimuth/elevation, sun intensity, horizon haze, and exposure controls.
 
 The benchmark scene targets atmosphere, scale, and lighting composition only. It does not replace the FFT/cascade simulation with decorative waves.
@@ -73,6 +90,7 @@ Use the **Quality** GUI folder to switch between **Low**, **Medium**, and **High
 Use the **Benchmark scene** folder for camera bookmarks:
 
 - **Apply camera** restores the benchmark waterline shot.
+- **Screenshot mode (H)** hides debug UI for captures.
 - **Underwater view** forces underwater mode and moves the camera below the surface.
 - **Overview camera** returns to an above-water inspection view.
 

@@ -36,7 +36,7 @@ Open that URL in a WebGPU-capable browser. You should see:
 - An orbit camera (drag to rotate, scroll to zoom)
 - A **Spectral Ocean** debug panel (lil-gui)
 - An **FPS** readout in the corner
-- The Milestone 8 benchmark view: low camera, visible sky/sun, horizon haze, distant rock silhouettes, and a buoy scale cue
+- The Milestone 11 benchmark view: low camera, hero boat, floating buoy, palm-topped horizon islands, sky/sun, and horizon haze
 - The Milestone 9 surface polish controls for water color, reflection, glitter, and foam
 - The Milestone 10 quality presets, camera bookmarks, and smoother underwater transition controls
 
@@ -54,10 +54,19 @@ Do not wrap Vite in PowerShell `Start-Process` just to force a custom port. In t
 
 ## Benchmark screenshot view
 
-Milestone 8 adds a repeatable comparison view inspired by the Water Pro reference screenshot. In the **Benchmark scene** GUI folder:
+Milestone 11 composes a repeatable comparison view inspired by the Water Pro reference screenshot. In the **Benchmark scene** GUI folder:
 
-- **Apply camera** restores the saved low waterline camera.
-- **Apply full preset** restores the open-ocean sea state, lighting, haze, exposure, and saved camera.
+- **Apply camera** restores the saved low waterline camera aimed at the hero boat.
+- **Apply full preset** restores the open-ocean sea state, Milestone 11 lighting, haze, exposure, and saved camera.
+- **Screenshot mode (H)** hides the debug panel and FPS overlay for clean captures.
+
+Press **H** at any time to toggle screenshot mode on or off.
+
+The default scene layout includes:
+
+- A stylized **hero boat** near the center of the benchmark frame.
+- A **floating buoy** in the mid-ground for scale.
+- **Horizon islands** with low-poly palm silhouettes.
 
 Use this view for before/after screenshots. The **Rendering** folder exposes sun azimuth, sun elevation, sun intensity, horizon haze, and exposure controls for small composition adjustments.
 
@@ -130,19 +139,19 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Tiny-wave damping** | Higher values suppress small ripples |
 | **Debug texture** | PiP overlay shows height, displacement, normal, Jacobian, or accumulated foam |
 | **Foam** | Whitecaps build at crests where Jacobian compression exceeds threshold; decay and clear in the Foam folder |
-| **Buoyancy** | Orange sphere and brown boat ride waves; toggle, tune stiffness/damping, reset positions in the Buoyancy folder |
+| **Buoyancy** | Floating buoy and hero boat ride waves; toggle, tune stiffness/damping, reset positions in the Buoyancy folder |
 | **Benchmark scene** | Restores the saved Milestone 8 camera and open-ocean lighting preset |
 | **Sun / haze / exposure** | Tunes the Milestone 8 sky, sun disk, horizon haze, and renderer exposure |
 | **Surface polish** | Tunes Milestone 9 water colors, sky reflection, glitter, and lighting-aware foam blend |
 | **Quality** | Switches Low/Medium/High pixel ratio, cascade, foam, and environment settings |
 | **Waterline blend** | Tunes the Milestone 10 transition distance between above-water and underwater atmosphere |
 
-### Buoyancy (Milestone 6)
+### Buoyancy (Milestone 6 / 11)
 
-- [ ] Orange **sphere** bobs on the surface near `(12, 8)` in world XZ
-- [ ] **Boat** hull pitches and rolls with four corner height samples near `(-14, -10)`
-- [ ] Disabling **Sphere** or **Boat** in the Buoyancy folder stops that body’s motion
-- [ ] **Reset sphere** / **Reset boat** return bodies to their spawn poses
+- [ ] **Floating buoy** bobs on the surface in the mid-ground
+- [ ] **Hero boat** pitches and rolls with four corner height samples near the benchmark center
+- [ ] Disabling **Buoy** or **Boat** in the Buoyancy folder stops that body’s motion
+- [ ] **Reset buoy** / **Reset boat** return bodies to their benchmark spawn poses
 - [ ] Higher **Vertical stiffness** reduces lag on wave crests; higher **Orientation blend** tracks slope faster
 
 ### Performance

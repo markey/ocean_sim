@@ -28,6 +28,10 @@ export class StatsPanel {
     this.render();
   }
 
+  setVisible(visible: boolean): void {
+    this.element.style.display = visible ? '' : 'none';
+  }
+
   private render(): void {
     this.element.textContent = `FPS ${this.fps || '--'}\nQuality ${this.qualityPreset}`;
   }

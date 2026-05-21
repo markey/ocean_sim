@@ -320,42 +320,131 @@ export class OceanEnvironment {
       metalness: 0,
     });
 
-    const addRock = (
-      x: number,
-      z: number,
-      radius: number,
-      height: number,
-      material: THREE.Material,
-      rotation: number,
-    ) => {
-      const rock = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 7), material);
-      rock.name = 'Low-poly Horizon Rock';
-      rock.position.set(x, -10 + height * 0.38, z);
-      rock.rotation.set(0.04, rotation, 0.12);
-      rock.scale.z = 0.62;
-      this.horizonGroup.add(rock);
-    };
+    this.addIsland(-205, -292, {
+      rockMaterial: hazeRockMaterial,
+      baseRadius: 58,
+      baseHeight: 98,
+      palmCount: 3,
+      rotation: 0.15,
+    });
+    this.addIsland(-118, -318, {
+      rockMaterial: hazeRockMaterial,
+      baseRadius: 38,
+      baseHeight: 72,
+      palmCount: 2,
+      rotation: -0.35,
+    });
+    this.addIsland(168, -278, {
+      rockMaterial: rockMaterial,
+      baseRadius: 68,
+      baseHeight: 118,
+      palmCount: 4,
+      rotation: 0.08,
+    });
+    this.addIsland(252, -308, {
+      rockMaterial: rockMaterial,
+      baseRadius: 44,
+      baseHeight: 84,
+      palmCount: 2,
+      rotation: -0.22,
+    });
+    this.addDistantRock(330, -342, 88, 156, hazeRockMaterial, 0.38);
+  }
 
-    addRock(-210, -300, 56, 106, hazeRockMaterial, 0.2);
-    addRock(-130, -324, 42, 78, hazeRockMaterial, -0.45);
-    addRock(160, -286, 72, 128, rockMaterial, 0.1);
-    addRock(245, -312, 48, 92, rockMaterial, -0.3);
-    addRock(340, -350, 92, 168, hazeRockMaterial, 0.42);
+  private addDistantRock(
+    x: number,
+    z: number,
+    radius: number,
+    height: number,
+    material: THREE.Material,
+    rotation: number,
+  ): void {
+    const rock = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 8), material);
+    rock.name = 'Distant Horizon Rock';
+    rock.position.set(x, -10 + height * 0.38, z);
+    rock.rotation.set(0.04, rotation, 0.12);
+    rock.scale.set(1, 1, 0.62);
+    this.horizonGroup.add(rock);
+  }
 
-    const buoyGroup = new THREE.Group();
-    buoyGroup.name = 'Benchmark Buoy';
-    buoyGroup.position.set(-88, 1, -110);
+  private addIsland(
+    x: number,
+    z: number,
+    options: {
+      rockMaterial: THREE.Material;
+      baseRadius: number;
+      baseHeight: number;
+      palmCount: number;
+      rotation: number;
+    },
+  ): void {
+    const island = new THREE.Group();
+    island.name = 'Benchmark Island';
+    island.position.set(x, 0, z);
+    island.rotation.y = options.rotation;
 
-    const buoyMaterial = new THREE.MeshStandardMaterial({ color: 0xb34022, roughness: 0.55 });
-    const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x231915, roughness: 0.7 });
-    const buoyBase = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.7, 3.2, 12), buoyMaterial);
-    const buoyTop = new THREE.Mesh(new THREE.ConeGeometry(1.25, 2.4, 12), buoyMaterial);
-    const buoyMast = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 8, 8), darkMaterial);
-    buoyBase.position.y = 0.9;
-    buoyTop.position.y = 3.7;
-    buoyMast.position.y = 5.5;
-    buoyGroup.add(buoyBase, buoyTop, buoyMast);
-    this.horizonGroup.add(buoyGroup);
+    const mainRock = new THREE.Mesh(
+      new THREE.ConeGeometry(options.baseRadius, options.baseHeight, 8),
+      options.rockMaterial,
+    );
+    mainRock.position.set(0, -10 + options.baseHeight * 0.36, 0);
+    mainRock.scale.set(1.08, 1, 0.78);
+    island.add(mainRock);
+
+    const shoulder = new THREE.Mesh(
+      new THREE.ConeGeometry(options.baseRadius * 0.62, options.baseHeight * 0.58, 7),
+      options.rockMaterial,
+    );
+    shoulder.position.set(options.baseRadius * 0.34, -10 + options.baseHeight * 0.22, -18);
+    shoulder.rotation.z = 0.18;
+    island.add(shoulder);
+
+    const shelf = new THREE.Mesh(
+      new THREE.BoxGeometry(options.baseRadius * 1.15, options.baseHeight * 0.12, options.baseRadius * 0.55),
+      options.rockMaterial,
+    );
+    shelf.position.set(0, -10 + options.baseHeight * 0.12, 0);
+    island.add(shelf);
+
+    for (let i = 0; i < options.palmCount; i += 1) {
+      const angle = (i / options.palmCount) * Math.PI * 2 + options.rotation;
+      const palmX = Math.cos(angle) * options.baseRadius * 0.22;
+      const palmZ = Math.sin(angle) * options.baseRadius * 0.16;
+      this.addPalm(island, palmX, palmZ, 16 + i * 2.4);
+    }
+
+    this.horizonGroup.add(island);
+  }
+
+  private addPalm(parent: THREE.Group, x: number, z: number, height: number): void {
+    const trunkMaterial = new THREE.MeshStandardMaterial({
+      color: 0x5a3f2c,
+      roughness: 0.88,
+      metalness: 0,
+    });
+    const leafMaterial = new THREE.MeshStandardMaterial({
+      color: 0x3f6b3a,
+      roughness: 0.82,
+      metalness: 0,
+    });
+
+    const palm = new THREE.Group();
+    palm.name = 'Palm Tree';
+    palm.position.set(x, -10 + height * 0.12, z);
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.75, height, 6), trunkMaterial);
+    trunk.position.y = height * 0.5;
+    palm.add(trunk);
+
+    for (let i = 0; i < 5; i += 1) {
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(2.4, 5.8, 4), leafMaterial);
+      leaf.rotation.z = Math.PI * 0.52;
+      leaf.rotation.y = (i / 5) * Math.PI * 2;
+      leaf.position.y = height + 1.2;
+      palm.add(leaf);
+    }
+
+    parent.add(palm);
   }
 
   private updateSunDirection(): void {
