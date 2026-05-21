@@ -119,6 +119,53 @@ Once the simulation is solid, improve the rendering:
 - Caustics on a simple seafloor.
 - Underwater mode with fog, color attenuation, particles, and surface distortion.
 
+Milestone 8: Benchmark scene and lighting pass
+Use the Water Pro screenshot as a visual direction, but keep this milestone focused on achievable presentation improvements. The goal is to make the existing spectral ocean feel less like a technical test scene and more like a composed sea view.
+
+Add:
+- A benchmark camera preset near the waterline with a repeatable "cinematic ocean" sea state for before/after screenshots.
+- A stronger sky/sun setup: sun direction controls, warmer sun color, cooler sky color, horizon haze, tone mapping/exposure controls, and a visible sun disk or glow.
+- Simple distance cues: a few low-poly island or rock silhouettes, a buoy or simple boat prop, and fog that softens the horizon.
+- Better scene composition defaults: waterline camera height, sun glint angle, object placement, and GUI preset for the benchmark view.
+- Documentation with the screenshot comparison goal and clear notes about which Water Pro qualities this milestone is targeting.
+
+Acceptance criteria:
+- The benchmark preset should immediately look more atmospheric than Milestone 7 without changing the spectral wave simulation.
+- The scene should provide scale, horizon depth, and lighting variation when viewed from the saved camera.
+- README or running/testing docs should explain how to open the benchmark view and capture a comparison screenshot.
+
+Milestone 9: Surface material and foam polish
+Improve the water surface shading using the existing simulation outputs. This milestone should avoid expensive full-scene reflection/refraction systems unless the installed Three.js WebGPU APIs make a small implementation practical.
+
+Add:
+- Stronger Fresnel and sky-color reflection approximation driven by view angle and simulated normals.
+- Tunable sun glitter using the existing slope/normal data, with controls for intensity, sharpness, and threshold.
+- Better water color controls for shallow/deep tint, absorption strength, subsurface color, and foam blending.
+- Foam polish using the existing foam/Jacobian pipeline: sharper crest masks, less flat-white shading, lighting-aware foam color, and better decay/threshold defaults.
+- Optional close-view normal refinement from existing cascade data if it can be done without adding procedural wave motion.
+- Debug controls grouped into a "Surface polish" folder.
+
+Acceptance criteria:
+- The benchmark scene should show clearer highlights, richer water color, and more convincing crest foam than Milestone 8.
+- The added sparkle and normal detail must be derived from spectral/cascade outputs, not from decorative scrolling normal maps as the primary surface detail.
+- The app should remain interactive on a modern WebGPU browser at the current default resolution.
+
+Milestone 10: Underwater polish and quality presets
+Polish the already-planned underwater and presentation features, but keep the scope practical. This milestone is about making the demo easier to tune, compare, and run on different machines.
+
+Add:
+- A smoother waterline transition when the camera crosses the surface, using the existing underwater fog, color attenuation, and surface distortion effects.
+- Improved underwater mood: denser depth fog, subtle particles, caustic strength controls, and better color attenuation defaults.
+- Low/Medium/High quality presets for existing features such as simulation resolution, cascades, foam, environment effects, and post-processing toggles.
+- A compact debug/performance panel showing FPS and the active quality preset. Add GPU timings only if they are straightforward with the current WebGPU/Three.js APIs.
+- Fixed camera bookmarks and deterministic preset values for visual regression screenshots.
+- Documentation for quality presets, benchmark screenshots, and remaining known visual gaps.
+
+Acceptance criteria:
+- The demo should have a practical High preset and a faster fallback preset.
+- Underwater mode should feel intentional rather than like a color overlay.
+- The benchmark workflow should make it easy to compare Milestone 8, 9, and 10 screenshots.
+
 Constraints:
 - Do not replace the simulation with procedural noise.
 - Do not use Gerstner waves as the main solution.
