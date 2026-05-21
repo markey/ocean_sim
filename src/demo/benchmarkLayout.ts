@@ -19,9 +19,11 @@ export const BENCHMARK_LAYOUT = {
   sun: {
     azimuthDegrees: 212,
     elevationDegrees: 26,
-    intensity: 3.15,
-    horizonHaze: 0.58,
-    exposure: 1.04,
+    intensity: 3.35,
+    horizonHaze: 0.72,
+    cloudStrength: 0.68,
+    sunGlowStrength: 0.82,
+    exposure: 1.08,
   },
 } as const;
 

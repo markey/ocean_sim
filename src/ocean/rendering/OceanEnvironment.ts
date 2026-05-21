@@ -5,6 +5,7 @@ import {
   cos,
   dot,
   float,
+  length,
   mix,
   normalize,
   positionLocal,
@@ -20,9 +21,11 @@ export type UnderwaterMode = 'auto' | 'above' | 'underwater';
 
 export type OceanEnvironmentParameters = {
   causticStrength: number;
+  cloudStrength: number;
   horizonHaze: number;
   sunAzimuthDegrees: number;
   sunElevationDegrees: number;
+  sunGlowStrength: number;
   sunIntensity: number;
   underwaterFogDensity: number;
   underwaterParticleStrength: number;
@@ -32,21 +35,24 @@ export type OceanEnvironmentParameters = {
 
 export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = {
   causticStrength: 0.32,
-  horizonHaze: 0.58,
+  cloudStrength: 0.68,
+  horizonHaze: 0.72,
   sunAzimuthDegrees: 238,
   sunElevationDegrees: 22,
-  sunIntensity: 3.15,
+  sunGlowStrength: 0.82,
+  sunIntensity: 3.35,
   underwaterFogDensity: 0.028,
   underwaterParticleStrength: 0.48,
   waterlineBlendDistance: 3.5,
   underwaterMode: 'auto',
 };
 
-const ABOVE_WATER_BACKGROUND = new THREE.Color(0x79aeca);
+const ABOVE_WATER_BACKGROUND = new THREE.Color(0x88b8d4);
 const UNDERWATER_BACKGROUND = new THREE.Color(0x063142);
-const ABOVE_WATER_FOG_COLOR = new THREE.Color(0x9db6c5);
+const ABOVE_WATER_FOG_COLOR = new THREE.Color(0xa8bcc8);
 const UNDERWATER_FOG_COLOR = new THREE.Color(0x0a3945);
-const ACTIVE_FOG = new THREE.FogExp2(ABOVE_WATER_FOG_COLOR, 0.0009);
+const ACTIVE_FOG = new THREE.FogExp2(ABOVE_WATER_FOG_COLOR, 0.001);
+const SUN_DISK_RADIUS = 52;
 const SUN_DISTANCE = 620;
 
 /**
@@ -68,6 +74,10 @@ export class OceanEnvironment {
     DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.causticStrength,
   );
   private readonly horizonHazeUniform = uniform(DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.horizonHaze);
+  private readonly cloudStrengthUniform = uniform(DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.cloudStrength);
+  private readonly sunGlowStrengthUniform = uniform(
+    DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.sunGlowStrength,
+  );
   private readonly sunDirectionUniform = uniform(new THREE.Vector3());
   private readonly particleMaterial: THREE.PointsMaterial;
   private readonly parameters = { ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS };
@@ -85,7 +95,7 @@ export class OceanEnvironment {
   ) {
     this.sunLight = lights.sun;
     this.hemiLight = lights.hemisphere;
-    this.group.name = 'Milestone 8 Ocean Environment';
+    this.group.name = 'Milestone 12 Ocean Environment';
 
     this.skyDome = this.createSkyDome();
     this.sunDisk = this.createSunDisk();
@@ -198,6 +208,14 @@ export class OceanEnvironment {
       this.updateAboveWaterFog();
     }
 
+    if (next.cloudStrength !== undefined) {
+      this.cloudStrengthUniform.value = next.cloudStrength;
+    }
+
+    if (next.sunGlowStrength !== undefined) {
+      this.sunGlowStrengthUniform.value = next.sunGlowStrength;
+    }
+
     if (
       next.sunAzimuthDegrees !== undefined ||
       next.sunElevationDegrees !== undefined ||
@@ -244,7 +262,7 @@ export class OceanEnvironment {
 
     const background = ABOVE_WATER_BACKGROUND.clone().lerp(UNDERWATER_BACKGROUND, underwaterBlend);
     const fogColor = ABOVE_WATER_FOG_COLOR.clone().lerp(UNDERWATER_FOG_COLOR, underwaterBlend);
-    const aboveDensity = 0.0009 + this.parameters.horizonHaze * 0.00065;
+    const aboveDensity = 0.001 + this.parameters.horizonHaze * 0.00085;
 
     ACTIVE_FOG.color.copy(fogColor);
     ACTIVE_FOG.density = THREE.MathUtils.lerp(
@@ -268,18 +286,38 @@ export class OceanEnvironment {
     material.colorNode = Fn(() => {
       const localDirection = normalize(positionLocal);
       const height = saturate(localDirection.y.mul(0.58).add(0.42));
-      const horizon = color(0xb8c5c9);
-      const lowSky = color(0x7fa4c9);
-      const zenith = color(0x2e65ad);
-      const warmHaze = color(0xf3d9b3);
-      const sky = mix(mix(horizon, lowSky, height), zenith, pow(height, float(1.65)));
-      const sunAlignment = pow(
-        saturate(dot(localDirection, normalize(vec3(this.sunDirectionUniform)))),
-        float(48),
-      );
-      const haze = pow(saturate(float(1).sub(height)), float(2.4)).mul(this.horizonHazeUniform);
+      const horizon = color(0xc8d4d8);
+      const lowSky = color(0x86aed4);
+      const zenith = color(0x2459a8);
+      const warmHaze = color(0xf5e0bc);
+      const sky = mix(mix(horizon, lowSky, height), zenith, pow(height, float(1.72)));
 
-      return mix(sky, warmHaze, saturate(haze.add(sunAlignment.mul(0.55))));
+      const sunDirection = normalize(vec3(this.sunDirectionUniform));
+      const sunAlignment = pow(saturate(dot(localDirection, sunDirection)), float(42));
+      const haze = pow(saturate(float(1).sub(height)), float(2.15)).mul(this.horizonHazeUniform);
+      const atmosphericSky = mix(sky, warmHaze, saturate(haze.add(sunAlignment.mul(0.62))));
+
+      // Wispy horizontal cloud bands drift slowly across the mid/upper sky.
+      const cloudWaveA = sin(
+        localDirection.x.mul(9.5).add(localDirection.z.mul(6.2)).add(this.timeUniform.mul(0.035)),
+      );
+      const cloudWaveB = sin(
+        localDirection.x.mul(14.8).sub(localDirection.z.mul(8.4)).add(this.timeUniform.mul(0.028)),
+      );
+      const cloudWaveC = cos(
+        localDirection.x.mul(5.6).add(localDirection.z.mul(11.2)).sub(this.timeUniform.mul(0.018)),
+      );
+      const cloudNoise = pow(
+        saturate(cloudWaveA.mul(0.42).add(cloudWaveB.mul(0.34)).add(cloudWaveC.mul(0.24)).add(0.48)),
+        float(2.35),
+      );
+      const cloudHeightMask = pow(saturate(height.mul(0.95).add(0.08)), float(0.85)).mul(
+        saturate(float(1).sub(height.mul(0.35))),
+      );
+      const cloudMask = cloudNoise.mul(cloudHeightMask).mul(this.cloudStrengthUniform);
+      const cloudColor = mix(color(0xf8f4ee), color(0xe8edf5), saturate(height.mul(0.6)));
+
+      return mix(atmosphericSky, cloudColor, cloudMask.mul(0.58));
     })();
 
     const sky = new THREE.Mesh(geometry, material);
@@ -290,15 +328,29 @@ export class OceanEnvironment {
   }
 
   private createSunDisk(): THREE.Mesh {
-    const geometry = new THREE.CircleGeometry(32, 48);
-    const material = new THREE.MeshBasicMaterial({
-      color: 0xfff4c7,
+    const geometry = new THREE.CircleGeometry(SUN_DISK_RADIUS, 48);
+    const material = new THREE.MeshBasicNodeMaterial({
       transparent: true,
-      opacity: 0.92,
       depthWrite: false,
       fog: false,
       side: THREE.DoubleSide,
     });
+
+    material.colorNode = Fn(() => {
+      const radial = length(positionLocal.xy).div(float(SUN_DISK_RADIUS));
+      const core = pow(saturate(float(1).sub(radial.mul(1.75))), float(7));
+      const halo = pow(saturate(float(1).sub(radial)), float(1.65)).mul(this.sunGlowStrengthUniform);
+      const coreColor = color(0xfff8e8);
+      const haloColor = color(0xffe4b0);
+      return mix(haloColor, coreColor, saturate(core.mul(2.8).add(halo.mul(0.25))));
+    })();
+
+    material.opacityNode = Fn(() => {
+      const radial = length(positionLocal.xy).div(float(SUN_DISK_RADIUS));
+      const falloff = pow(saturate(float(1).sub(radial)), float(1.2));
+      return falloff.mul(mix(float(0.32), float(0.98), this.sunGlowStrengthUniform));
+    })();
+
     const disk = new THREE.Mesh(geometry, material);
     disk.name = 'Benchmark Sun Disk';
     disk.renderOrder = -900;
@@ -313,11 +365,13 @@ export class OceanEnvironment {
       color: 0x49372f,
       roughness: 0.92,
       metalness: 0,
+      fog: true,
     });
     const hazeRockMaterial = new THREE.MeshStandardMaterial({
-      color: 0x5d6873,
+      color: 0x667380,
       roughness: 0.96,
       metalness: 0,
+      fog: true,
     });
 
     this.addIsland(-205, -292, {
@@ -421,11 +475,13 @@ export class OceanEnvironment {
       color: 0x5a3f2c,
       roughness: 0.88,
       metalness: 0,
+      fog: true,
     });
     const leafMaterial = new THREE.MeshStandardMaterial({
       color: 0x3f6b3a,
       roughness: 0.82,
       metalness: 0,
+      fog: true,
     });
 
     const palm = new THREE.Group();
@@ -459,23 +515,25 @@ export class OceanEnvironment {
 
     if (this.sunLight) {
       this.sunLight.position.copy(this.sunDirection).multiplyScalar(160);
-      this.sunLight.color.set(0xfff0d0);
+      this.sunLight.color.set(0xfff4dc);
       this.sunLight.intensity = this.parameters.sunIntensity;
     }
 
     if (this.hemiLight) {
-      this.hemiLight.color.set(0x8fb7e8);
+      this.hemiLight.color.set(0x93c4ef);
       this.hemiLight.groundColor.set(0x18343b);
-      this.hemiLight.intensity = 0.68;
+      this.hemiLight.intensity = 0.72;
     }
   }
 
   private updateAboveWaterFog(): void {
     const haze = this.parameters.horizonHaze;
-    ABOVE_WATER_FOG_COLOR.set(0x9db6c5).lerp(new THREE.Color(0xc5b9aa), haze * 0.38);
+    ABOVE_WATER_FOG_COLOR.set(0xa8bcc8).lerp(new THREE.Color(0xd4c4b0), haze * 0.52);
+    ABOVE_WATER_BACKGROUND.set(0x88b8d4).lerp(new THREE.Color(0xc8d0d8), haze * 0.28);
     if (this.underwaterBlend <= 0.001) {
       ACTIVE_FOG.color.copy(ABOVE_WATER_FOG_COLOR);
-      ACTIVE_FOG.density = 0.0009 + haze * 0.00065;
+      ACTIVE_FOG.density = 0.001 + haze * 0.00085;
+      this.scene.background = ABOVE_WATER_BACKGROUND.clone();
     }
   }
 

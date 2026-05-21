@@ -149,7 +149,7 @@ export class DebugControls {
       rendering: {
         ...DEFAULT_WATER_RENDERING_PARAMETERS,
         ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS,
-        exposure: 1.04,
+        exposure: 1.08,
       },
       buoyancy: {
         ...DEFAULT_BUOYANCY_PARAMETERS,
@@ -396,6 +396,8 @@ export class DebugControls {
             this.state.preset = 'openOcean';
             this.applyPreset(OCEAN_PRESETS.openOcean);
             this.state.rendering.horizonHaze = BENCHMARK_LAYOUT.sun.horizonHaze;
+            this.state.rendering.cloudStrength = BENCHMARK_LAYOUT.sun.cloudStrength;
+            this.state.rendering.sunGlowStrength = BENCHMARK_LAYOUT.sun.sunGlowStrength;
             this.state.rendering.sunAzimuthDegrees = BENCHMARK_LAYOUT.sun.azimuthDegrees;
             this.state.rendering.sunElevationDegrees = BENCHMARK_LAYOUT.sun.elevationDegrees;
             this.state.rendering.sunIntensity = BENCHMARK_LAYOUT.sun.intensity;
@@ -509,31 +511,45 @@ export class DebugControls {
       .name('Caustics')
       .decimals(2)
       .onChange(syncWaterRendering);
-    renderingFolder
+
+    const skyAtmosphereFolder = this.gui.addFolder('Sky & atmosphere');
+    skyAtmosphereFolder
       .add(this.state.rendering, 'sunAzimuthDegrees', 0, 360, 1)
       .name('Sun azimuth')
       .decimals(0)
       .onChange(syncWaterRendering);
-    renderingFolder
+    skyAtmosphereFolder
       .add(this.state.rendering, 'sunElevationDegrees', 2, 70, 1)
       .name('Sun elevation')
       .decimals(0)
       .onChange(syncWaterRendering);
-    renderingFolder
+    skyAtmosphereFolder
       .add(this.state.rendering, 'sunIntensity', 0.4, 6, 0.05)
       .name('Sun intensity')
       .decimals(2)
       .onChange(syncWaterRendering);
-    renderingFolder
+    skyAtmosphereFolder
+      .add(this.state.rendering, 'sunGlowStrength', 0, 1.2, 0.01)
+      .name('Sun glow')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    skyAtmosphereFolder
       .add(this.state.rendering, 'horizonHaze', 0, 1, 0.01)
       .name('Horizon haze')
       .decimals(2)
       .onChange(syncWaterRendering);
-    renderingFolder
+    skyAtmosphereFolder
+      .add(this.state.rendering, 'cloudStrength', 0, 1.2, 0.01)
+      .name('Cloud bands')
+      .decimals(2)
+      .onChange(syncWaterRendering);
+    skyAtmosphereFolder
       .add(this.state.rendering, 'exposure', 0.45, 1.8, 0.01)
       .name('Exposure')
       .decimals(2)
       .onChange(syncWaterRendering);
+    skyAtmosphereFolder.open();
+
     renderingFolder
       .add(this.state.rendering, 'underwaterFogDensity', 0.004, 0.08, 0.001)
       .name('Water fog')

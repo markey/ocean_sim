@@ -58,6 +58,8 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     sunElevationDegrees: BENCHMARK_LAYOUT.sun.elevationDegrees,
     sunIntensity: BENCHMARK_LAYOUT.sun.intensity,
     horizonHaze: BENCHMARK_LAYOUT.sun.horizonHaze,
+    cloudStrength: BENCHMARK_LAYOUT.sun.cloudStrength,
+    sunGlowStrength: BENCHMARK_LAYOUT.sun.sunGlowStrength,
   });
   const debugTextureView = new DebugTextureView(cascadeSystem);
   const floatingBuoy = new FloatingBuoy({

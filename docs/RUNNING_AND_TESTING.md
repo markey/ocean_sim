@@ -36,7 +36,7 @@ Open that URL in a WebGPU-capable browser. You should see:
 - An orbit camera (drag to rotate, scroll to zoom)
 - A **Spectral Ocean** debug panel (lil-gui)
 - An **FPS** readout in the corner
-- The Milestone 11 benchmark view: low camera, hero boat, floating buoy, palm-topped horizon islands, sky/sun, and horizon haze
+- The Milestone 12 benchmark view: cloud bands, sun glow, hero boat, floating buoy, palm-topped horizon islands, and stronger horizon haze
 - The Milestone 9 surface polish controls for water color, reflection, glitter, and foam
 - The Milestone 10 quality presets, camera bookmarks, and smoother underwater transition controls
 
@@ -68,7 +68,19 @@ The default scene layout includes:
 - A **floating buoy** in the mid-ground for scale.
 - **Horizon islands** with low-poly palm silhouettes.
 
-Use this view for before/after screenshots. The **Rendering** folder exposes sun azimuth, sun elevation, sun intensity, horizon haze, and exposure controls for small composition adjustments.
+Use this view for before/after screenshots. The **Sky & atmosphere** folder exposes sun direction, sun glow, horizon haze, cloud bands, and exposure. The **Rendering** folder still holds water and underwater controls.
+
+## Sky and atmosphere controls
+
+Milestone 12 adds a **Sky & atmosphere** GUI folder:
+
+- **Sun azimuth**, **Sun elevation**, and **Sun intensity** aim the directional light and sun disk.
+- **Sun glow** controls the shader-based halo around the sun (no extra render pass).
+- **Horizon haze** increases atmospheric fog toward the horizon and softens distant islands.
+- **Cloud bands** tune procedural wispy clouds on the sky dome shader.
+- **Exposure** adjusts renderer tone mapping brightness.
+
+These controls are visual-only and do not modify the spectral simulation.
 
 ## Surface polish controls
 
@@ -140,8 +152,9 @@ Use this checklist after changes to simulation, FFT, or rendering code.
 | **Debug texture** | PiP overlay shows height, displacement, normal, Jacobian, or accumulated foam |
 | **Foam** | Whitecaps build at crests where Jacobian compression exceeds threshold; decay and clear in the Foam folder |
 | **Buoyancy** | Floating buoy and hero boat ride waves; toggle, tune stiffness/damping, reset positions in the Buoyancy folder |
-| **Benchmark scene** | Restores the saved Milestone 8 camera and open-ocean lighting preset |
-| **Sun / haze / exposure** | Tunes the Milestone 8 sky, sun disk, horizon haze, and renderer exposure |
+| **Benchmark scene** | Restores the saved Milestone 11 camera and open-ocean lighting preset |
+| **Sky & atmosphere** | Tunes Milestone 12 sun glow, cloud bands, horizon haze, and exposure |
+| **Sun / haze / exposure** | Legacy checklist label — see **Sky & atmosphere** folder |
 | **Surface polish** | Tunes Milestone 9 water colors, sky reflection, glitter, and lighting-aware foam blend |
 | **Quality** | Switches Low/Medium/High pixel ratio, cascade, foam, and environment settings |
 | **Waterline blend** | Tunes the Milestone 10 transition distance between above-water and underwater atmosphere |

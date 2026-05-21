@@ -1,6 +1,6 @@
 # Spectral Ocean Simulation
 
-Milestone 11 adds a composed benchmark scene: stylized hero boat, floating channel buoy, palm-topped horizon islands, retuned waterline camera and sun framing, and a screenshot mode that hides the debug UI. Milestone 10 underwater polish, quality presets, and camera bookmarks remain. Planned Milestones 12–14 (see `docs/OCEAN_SIM_PROJECT_BRIEF.md`) target sky/atmosphere, water material tuning, and contact foam — without raytracing or full-scene reflection passes.
+Milestone 12 adds procedural cloud bands, shader-based sun glow, warmer sun/cooler zenith sky defaults, and stronger horizon fog integration. Milestone 11 benchmark composition (hero boat, buoy, islands, screenshot mode) remains. Planned Milestones 13–14 target water material tuning and contact foam.
 
 ## Run
 
@@ -57,6 +57,18 @@ Use the **Benchmark scene** GUI folder:
 - **Screenshot mode (H)** hides the debug panel and FPS readout for clean captures.
 
 Press **H** at any time to toggle screenshot mode.
+
+## Milestone 12 Sky And Atmosphere
+
+Use the **Sky & atmosphere** GUI folder to tune the benchmark mood:
+
+- **Sun azimuth / elevation / intensity** — aim the sun and glint path.
+- **Sun glow** — soft halo around the sun disk (shader-based, no bloom pass).
+- **Horizon haze** — atmospheric perspective and fog density toward the horizon.
+- **Cloud bands** — procedural wispy clouds on the sky dome.
+- **Exposure** — renderer tone mapping brightness.
+
+These controls adjust visual-only environment shaders. They do not change the spectral wave simulation.
 
 ## Milestone 8–10 Benchmark And Quality
 
