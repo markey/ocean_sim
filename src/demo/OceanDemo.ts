@@ -65,7 +65,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   const floatingBuoy = new FloatingBuoy({
     position: BENCHMARK_LAYOUT.buoy.position.clone(),
   });
-  const floatingBoat = new FloatingBoat({
+  const floatingBoat = await FloatingBoat.create({
     position: BENCHMARK_LAYOUT.boat.position.clone(),
     length: BENCHMARK_LAYOUT.boat.length,
     width: BENCHMARK_LAYOUT.boat.width,

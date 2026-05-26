@@ -1,6 +1,6 @@
 import * as THREE from 'three/webgpu';
 import type { WaterMesh } from '../rendering/WaterMesh';
-import { buildHeroBoatVisual } from './buildHeroBoatVisual';
+import { loadHeroBoatVisual } from './loadHeroBoatVisual';
 import { lockToSurfaceHeight } from './buoyancyIntegration';
 import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from './types';
 
@@ -45,7 +45,13 @@ export class FloatingBoat {
   readonly samplePoints: SamplePoint[];
   enabled = true;
 
-  constructor(options: FloatingBoatOptions = {}) {
+  private readonly visualOptions: {
+    hullColor?: number;
+    deckColor?: number;
+  };
+  private visual: THREE.Group | null = null;
+
+  private constructor(options: FloatingBoatOptions = {}) {
     this.length = options.length ?? 14;
     this.width = options.width ?? 5.5;
     this.mass = options.mass ?? 850;
@@ -53,6 +59,10 @@ export class FloatingBoat {
     this.buoyancy = { ...DEFAULT_BUOYANCY_PARAMETERS, ...options.buoyancy };
     this.position = (options.position ?? new THREE.Vector3(-14, 5, -10)).clone();
     this.velocity = new THREE.Vector3();
+    this.visualOptions = {
+      hullColor: options.hullColor,
+      deckColor: options.deckColor,
+    };
 
     const halfLength = this.length * 0.5;
     const halfWidth = this.width * 0.5;
@@ -71,16 +81,33 @@ export class FloatingBoat {
 
     this.group = new THREE.Group();
     this.group.name = 'Floating Boat';
-    this.group.add(
-      buildHeroBoatVisual({
-        length: this.length,
-        width: this.width,
-        draft: this.draft,
-        hullColor: options.hullColor,
-        cabinColor: options.deckColor,
-      }),
-    );
     this.syncGroupTransform();
+  }
+
+  static async create(options: FloatingBoatOptions = {}): Promise<FloatingBoat> {
+    const boat = new FloatingBoat(options);
+    await boat.loadVisual();
+    return boat;
+  }
+
+  private async loadVisual(): Promise<void> {
+    const visual = await loadHeroBoatVisual({
+      length: this.length,
+      width: this.width,
+      draft: this.draft,
+      hullColor: this.visualOptions.hullColor,
+      cabinColor: this.visualOptions.deckColor,
+    });
+    this.setVisual(visual);
+  }
+
+  private setVisual(visual: THREE.Group): void {
+    if (this.visual) {
+      this.group.remove(this.visual);
+      this.disposeObject(this.visual);
+    }
+    this.visual = visual;
+    this.group.add(visual);
   }
 
   reset(position?: THREE.Vector3): void {
@@ -154,12 +181,22 @@ export class FloatingBoat {
     this.group.position.copy(this.position);
   }
 
-  dispose(): void {
-    this.group.traverse((child) => {
+  private disposeObject(object: THREE.Object3D): void {
+    object.traverse((child) => {
       if (child instanceof THREE.Mesh) {
         child.geometry.dispose();
-        (child.material as THREE.Material).dispose();
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          material.dispose();
+        }
       }
     });
+  }
+
+  dispose(): void {
+    if (this.visual) {
+      this.disposeObject(this.visual);
+      this.visual = null;
+    }
   }
 }
