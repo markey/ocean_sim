@@ -39,12 +39,22 @@ export type WaterRenderingParameters = {
   foamStrength: number;
   deepWaterColor: number;
   shallowWaterColor: number;
+  midWaterColor: number;
+  refractedWaterColor: number;
   skyReflectionColor: number;
   subsurfaceColor: number;
   foamColor: number;
+  // Sky gradient colors (kept in sync with OceanEnvironment sky dome)
+  skyHorizonColor: number;
+  skyLowColor: number;
+  skyZenithColor: number;
+  skyWarmHazeColor: number;
 };
 
-/** Milestone 13 defaults: richer teal palette, stronger crest scatter, sim-driven glitter. */
+/**
+ * Milestone 13 defaults — richer, more vibrant and interesting water palette.
+ * Designed to look good out of the box at the benchmark camera without any GUI tweaks.
+ */
 export const DEFAULT_WATER_RENDERING_PARAMETERS: WaterRenderingParameters = {
   fresnelStrength: 1.08,
   reflectionStrength: 0.84,
@@ -58,11 +68,18 @@ export const DEFAULT_WATER_RENDERING_PARAMETERS: WaterRenderingParameters = {
   foamContrast: 2.1,
   foamBrightness: 0.86,
   foamStrength: 0.54,
-  deepWaterColor: 0x024a68,
-  shallowWaterColor: 0x1ec4b8,
-  skyReflectionColor: 0x9fc5df,
-  subsurfaceColor: 0x5ee8cc,
-  foamColor: 0xe8f2ee,
+  deepWaterColor: 0x0a2848,       // rich deep ultramarine-teal
+  shallowWaterColor: 0x0c6a65,    // vibrant living teal
+  midWaterColor: 0x0a535a,        // bridge tone with depth
+  refractedWaterColor: 0x0e7c73,  // richer refracted tint
+  skyReflectionColor: 0x9acde0,   // clean sky reflection
+  subsurfaceColor: 0x72d9c4,      // lively aqua scatter for crests
+  foamColor: 0xf0f4f1,            // clean natural sea foam
+  // Sky gradient (coordinated with OceanEnvironment)
+  skyHorizonColor: 0xb8d6e2,
+  skyLowColor: 0x70b8d2,
+  skyZenithColor: 0x1a3a70,
+  skyWarmHazeColor: 0xf9e8d2,
 };
 
 export class WaterMesh {
@@ -109,6 +126,12 @@ export class WaterMesh {
   private readonly shallowWaterColorUniform = uniform(
     new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.shallowWaterColor),
   );
+  private readonly midWaterColorUniform = uniform(
+    new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.midWaterColor),
+  );
+  private readonly refractedWaterColorUniform = uniform(
+    new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.refractedWaterColor),
+  );
   private readonly skyReflectionColorUniform = uniform(
     new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.skyReflectionColor),
   );
@@ -118,6 +141,21 @@ export class WaterMesh {
   private readonly foamColorUniform = uniform(
     new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.foamColor),
   );
+
+  // Sky gradient uniforms so water reflections match the actual sky dome
+  private readonly skyHorizonColorUniform = uniform(
+    new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.skyHorizonColor),
+  );
+  private readonly skyLowColorUniform = uniform(
+    new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.skyLowColor),
+  );
+  private readonly skyZenithColorUniform = uniform(
+    new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.skyZenithColor),
+  );
+  private readonly skyWarmHazeColorUniform = uniform(
+    new THREE.Color(DEFAULT_WATER_RENDERING_PARAMETERS.skyWarmHazeColor),
+  );
+
   private readonly sunDirectionUniform = uniform(new THREE.Vector3(0.52, 0.78, 0.34).normalize());
 
   constructor(surface: OceanSurfaceProvider) {
@@ -132,7 +170,7 @@ export class WaterMesh {
     );
 
     this.material = new THREE.MeshStandardNodeMaterial({
-      color: new THREE.Color(0x066878),
+      color: new THREE.Color(0x0c6a65),
       roughness: 0.16,
       metalness: 0.01,
     });
@@ -149,9 +187,9 @@ export class WaterMesh {
     this.material.colorNode = Fn(() => {
       const worldNormal = normalWorld;
       const deepWater = this.deepWaterColorUniform;
-      const midWater = color(0x0a7a8e);
+      const midWater = this.midWaterColorUniform;
       const shallowWater = this.shallowWaterColorUniform;
-      const refractedWater = color(0x1db8a8);
+      const refractedWater = this.refractedWaterColorUniform;
       const subSurface = this.subsurfaceColorUniform;
       const foamColor = this.foamColorUniform;
       const viewDirection = normalize(cameraPosition.sub(positionWorld));
@@ -196,10 +234,10 @@ export class WaterMesh {
       const reflectionVector = reflect(viewDirection.mul(float(-1)), worldNormal);
       const skyDir = normalize(reflectionVector);
       const skyHeight = saturate(skyDir.y.mul(0.58).add(0.42));
-      const skyHorizon = color(0xc8d4d8);
-      const skyLow = color(0x86aed4);
-      const skyZenith = color(0x2459a8);
-      const skyWarmHaze = color(0xf5e0bc);
+      const skyHorizon = this.skyHorizonColorUniform;
+      const skyLow = this.skyLowColorUniform;
+      const skyZenith = this.skyZenithColorUniform;
+      const skyWarmHaze = this.skyWarmHazeColorUniform;
       const skyGradient = mix(
         mix(skyHorizon, skyLow, skyHeight),
         skyZenith,
@@ -278,7 +316,8 @@ export class WaterMesh {
       const refractUv = screenUV.add(
         normalWorld.xz.mul(this.refractionStrengthUniform).mul(float(0.018)),
       );
-      const underwaterTint = color(0x07566a);
+      // Richer underwater tint that matches the new environment palette
+      const underwaterTint = color(0x0a3748);
       return mix(viewportSharedTexture(refractUv).rgb, underwaterTint, float(0.34));
     })();
     this.material.backdropAlphaNode = this.refractionStrengthUniform.mul(0.28);
@@ -425,6 +464,12 @@ export class WaterMesh {
     if (next.shallowWaterColor !== undefined) {
       this.shallowWaterColorUniform.value.set(next.shallowWaterColor);
     }
+    if (next.midWaterColor !== undefined) {
+      this.midWaterColorUniform.value.set(next.midWaterColor);
+    }
+    if (next.refractedWaterColor !== undefined) {
+      this.refractedWaterColorUniform.value.set(next.refractedWaterColor);
+    }
     if (next.skyReflectionColor !== undefined) {
       this.skyReflectionColorUniform.value.set(next.skyReflectionColor);
     }
@@ -433,6 +478,18 @@ export class WaterMesh {
     }
     if (next.foamColor !== undefined) {
       this.foamColorUniform.value.set(next.foamColor);
+    }
+    if (next.skyHorizonColor !== undefined) {
+      this.skyHorizonColorUniform.value.set(next.skyHorizonColor);
+    }
+    if (next.skyLowColor !== undefined) {
+      this.skyLowColorUniform.value.set(next.skyLowColor);
+    }
+    if (next.skyZenithColor !== undefined) {
+      this.skyZenithColorUniform.value.set(next.skyZenithColor);
+    }
+    if (next.skyWarmHazeColor !== undefined) {
+      this.skyWarmHazeColorUniform.value.set(next.skyWarmHazeColor);
     }
   }
 

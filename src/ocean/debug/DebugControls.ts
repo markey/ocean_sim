@@ -663,6 +663,14 @@ export class DebugControls {
       .name('Shallow color')
       .onChange(syncWaterRendering);
     surfacePolishFolder
+      .addColor(this.state.rendering, 'midWaterColor')
+      .name('Mid color')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'refractedWaterColor')
+      .name('Refracted tint')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
       .addColor(this.state.rendering, 'skyReflectionColor')
       .name('Reflection color')
       .onChange(syncWaterRendering);
@@ -674,6 +682,25 @@ export class DebugControls {
       .addColor(this.state.rendering, 'foamColor')
       .name('Foam color')
       .onChange(syncWaterRendering);
+
+    // Sky gradient colors (control both sky dome and water reflections)
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'skyHorizonColor')
+      .name('Sky horizon')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'skyLowColor')
+      .name('Sky low')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'skyZenithColor')
+      .name('Sky zenith')
+      .onChange(syncWaterRendering);
+    surfacePolishFolder
+      .addColor(this.state.rendering, 'skyWarmHazeColor')
+      .name('Sky warm haze')
+      .onChange(syncWaterRendering);
+
     syncWaterRendering();
 
     if (buoyancyTargets) {

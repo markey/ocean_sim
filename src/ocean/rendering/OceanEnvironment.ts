@@ -31,6 +31,11 @@ export type OceanEnvironmentParameters = {
   underwaterParticleStrength: number;
   waterlineBlendDistance: number;
   underwaterMode: UnderwaterMode;
+  // Sky gradient colors (kept in sync with WaterMesh for consistent reflections)
+  skyHorizonColor: number;
+  skyLowColor: number;
+  skyZenithColor: number;
+  skyWarmHazeColor: number;
 };
 
 export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = {
@@ -45,12 +50,18 @@ export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = 
   underwaterParticleStrength: 0.48,
   waterlineBlendDistance: 3.5,
   underwaterMode: 'auto',
+  // Sky gradient (coordinated with WaterMesh defaults)
+  skyHorizonColor: 0xb8d6e2,
+  skyLowColor: 0x70b8d2,
+  skyZenithColor: 0x1a3a70,
+  skyWarmHazeColor: 0xf9e8d2,
 };
 
-const ABOVE_WATER_BACKGROUND = new THREE.Color(0x88b8d4);
-const UNDERWATER_BACKGROUND = new THREE.Color(0x063142);
-const ABOVE_WATER_FOG_COLOR = new THREE.Color(0xa8bcc8);
-const UNDERWATER_FOG_COLOR = new THREE.Color(0x0a3945);
+// Richer, more atmospheric colors coordinated with the new water palette
+const ABOVE_WATER_BACKGROUND = new THREE.Color(0x8abfd8);
+const UNDERWATER_BACKGROUND = new THREE.Color(0x05293c);
+const ABOVE_WATER_FOG_COLOR = new THREE.Color(0xa8c8d4);
+const UNDERWATER_FOG_COLOR = new THREE.Color(0x0a374a);
 const ACTIVE_FOG = new THREE.FogExp2(ABOVE_WATER_FOG_COLOR, 0.001);
 const SUN_DISK_RADIUS = 52;
 const SUN_DISTANCE = 620;
@@ -79,6 +90,20 @@ export class OceanEnvironment {
     DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.sunGlowStrength,
   );
   private readonly sunDirectionUniform = uniform(new THREE.Vector3());
+
+  // Sky gradient uniforms (drive the sky dome and should stay in sync with water)
+  private readonly skyHorizonColorUniform = uniform(
+    new THREE.Color(DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.skyHorizonColor),
+  );
+  private readonly skyLowColorUniform = uniform(
+    new THREE.Color(DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.skyLowColor),
+  );
+  private readonly skyZenithColorUniform = uniform(
+    new THREE.Color(DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.skyZenithColor),
+  );
+  private readonly skyWarmHazeColorUniform = uniform(
+    new THREE.Color(DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS.skyWarmHazeColor),
+  );
   private readonly particleMaterial: THREE.PointsMaterial;
   private readonly parameters = { ...DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS };
   private readonly sunDirection = new THREE.Vector3();
@@ -108,8 +133,8 @@ export class OceanEnvironment {
       metalness: 0,
     });
     floorMaterial.colorNode = Fn(() => {
-      const sand = color(0x8c876d);
-      const tealShadow = color(0x164a54);
+      const sand = color(0x8f8a72);
+      const tealShadow = color(0x1a4a55);
       const waveA = sin(positionWorld.x.mul(0.78).add(this.timeUniform.mul(0.72)));
       const waveB = sin(positionWorld.z.mul(0.68).sub(this.timeUniform.mul(0.56)));
       const waveC = cos(
@@ -231,6 +256,19 @@ export class OceanEnvironment {
     ) {
       this.applyAtmosphere(this.underwaterBlend);
     }
+
+    if (next.skyHorizonColor !== undefined) {
+      this.skyHorizonColorUniform.value.set(next.skyHorizonColor);
+    }
+    if (next.skyLowColor !== undefined) {
+      this.skyLowColorUniform.value.set(next.skyLowColor);
+    }
+    if (next.skyZenithColor !== undefined) {
+      this.skyZenithColorUniform.value.set(next.skyZenithColor);
+    }
+    if (next.skyWarmHazeColor !== undefined) {
+      this.skyWarmHazeColorUniform.value.set(next.skyWarmHazeColor);
+    }
   }
 
   dispose(): void {
@@ -286,10 +324,11 @@ export class OceanEnvironment {
     material.colorNode = Fn(() => {
       const localDirection = normalize(positionLocal);
       const height = saturate(localDirection.y.mul(0.58).add(0.42));
-      const horizon = color(0xc8d4d8);
-      const lowSky = color(0x86aed4);
-      const zenith = color(0x2459a8);
-      const warmHaze = color(0xf5e0bc);
+      // Sky gradient driven by uniforms (synced with water material for consistent reflections)
+      const horizon = this.skyHorizonColorUniform;
+      const lowSky = this.skyLowColorUniform;
+      const zenith = this.skyZenithColorUniform;
+      const warmHaze = this.skyWarmHazeColorUniform;
       const sky = mix(mix(horizon, lowSky, height), zenith, pow(height, float(1.72)));
 
       const sunDirection = normalize(vec3(this.sunDirectionUniform));
