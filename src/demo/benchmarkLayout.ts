@@ -20,10 +20,10 @@ export const BENCHMARK_LAYOUT = {
     azimuthDegrees: 212,
     elevationDegrees: 26,
     intensity: 3.35,
-    horizonHaze: 0.72,
-    cloudStrength: 0.68,
+    horizonHaze: 0.38,
+    cloudStrength: 0.48,
     sunGlowStrength: 0.82,
-    exposure: 1.08,
+    exposure: 1.02,
   },
   /** Windier open-ocean tuning for benchmark screenshots (Milestone 13). */
   seaState: {

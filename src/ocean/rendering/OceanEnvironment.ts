@@ -40,8 +40,8 @@ export type OceanEnvironmentParameters = {
 
 export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = {
   causticStrength: 0.32,
-  cloudStrength: 0.68,
-  horizonHaze: 0.72,
+  cloudStrength: 0.48,
+  horizonHaze: 0.38,
   sunAzimuthDegrees: 238,
   sunElevationDegrees: 22,
   sunGlowStrength: 0.82,
@@ -50,19 +50,19 @@ export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = 
   underwaterParticleStrength: 0.48,
   waterlineBlendDistance: 3.5,
   underwaterMode: 'auto',
-  // Sky gradient (coordinated with WaterMesh — cooler & deeper for blue ocean)
-  skyHorizonColor: 0x9ac4d4,
-  skyLowColor: 0x66a4c4,
-  skyZenithColor: 0x152d58,
-  skyWarmHazeColor: 0xf2e0cc,
+  // Sky gradient (coordinated with WaterMesh — deeper blues, less warm wash)
+  skyHorizonColor: 0x5a9ec4,
+  skyLowColor: 0x2d78aa,
+  skyZenithColor: 0x0a1e3d,
+  skyWarmHazeColor: 0xc8b498,
 };
 
-// Cooler, deeper blues for the new vibrant blue ocean palette
-const ABOVE_WATER_BACKGROUND = new THREE.Color(0x7fb8d4);
-const UNDERWATER_BACKGROUND = new THREE.Color(0x041f32);
-const ABOVE_WATER_FOG_COLOR = new THREE.Color(0x9cc4d8);
-const UNDERWATER_FOG_COLOR = new THREE.Color(0x082a3e);
-const ACTIVE_FOG = new THREE.FogExp2(ABOVE_WATER_FOG_COLOR, 0.001);
+// Rich blue atmosphere — avoids the washed-out silver-gray horizon look
+const ABOVE_WATER_BACKGROUND = new THREE.Color(0x1a5078);
+const UNDERWATER_BACKGROUND = new THREE.Color(0x021220);
+const ABOVE_WATER_FOG_COLOR = new THREE.Color(0x2d6a8a);
+const UNDERWATER_FOG_COLOR = new THREE.Color(0x042840);
+const ACTIVE_FOG = new THREE.FogExp2(ABOVE_WATER_FOG_COLOR, 0.00075);
 const SUN_DISK_RADIUS = 52;
 const SUN_DISTANCE = 620;
 
@@ -300,7 +300,7 @@ export class OceanEnvironment {
 
     const background = ABOVE_WATER_BACKGROUND.clone().lerp(UNDERWATER_BACKGROUND, underwaterBlend);
     const fogColor = ABOVE_WATER_FOG_COLOR.clone().lerp(UNDERWATER_FOG_COLOR, underwaterBlend);
-    const aboveDensity = 0.001 + this.parameters.horizonHaze * 0.00085;
+    const aboveDensity = 0.00055 + this.parameters.horizonHaze * 0.00048;
 
     ACTIVE_FOG.color.copy(fogColor);
     ACTIVE_FOG.density = THREE.MathUtils.lerp(
@@ -334,7 +334,7 @@ export class OceanEnvironment {
       const sunDirection = normalize(vec3(this.sunDirectionUniform));
       const sunAlignment = pow(saturate(dot(localDirection, sunDirection)), float(42));
       const haze = pow(saturate(float(1).sub(height)), float(2.15)).mul(this.horizonHazeUniform);
-      const atmosphericSky = mix(sky, warmHaze, saturate(haze.add(sunAlignment.mul(0.62))));
+      const atmosphericSky = mix(sky, warmHaze, saturate(haze.mul(0.55).add(sunAlignment.mul(0.38))));
 
       // Wispy horizontal cloud bands drift slowly across the mid/upper sky.
       const cloudWaveA = sin(
@@ -354,9 +354,9 @@ export class OceanEnvironment {
         saturate(float(1).sub(height.mul(0.35))),
       );
       const cloudMask = cloudNoise.mul(cloudHeightMask).mul(this.cloudStrengthUniform);
-      const cloudColor = mix(color(0xf8f4ee), color(0xe8edf5), saturate(height.mul(0.6)));
+      const cloudColor = mix(color(0xd8e8f4), color(0xa8c8e0), saturate(height.mul(0.6)));
 
-      return mix(atmosphericSky, cloudColor, cloudMask.mul(0.58));
+      return mix(atmosphericSky, cloudColor, cloudMask.mul(0.42));
     })();
 
     const sky = new THREE.Mesh(geometry, material);
@@ -559,16 +559,16 @@ export class OceanEnvironment {
     }
 
     if (this.hemiLight) {
-      this.hemiLight.color.set(0x93c4ef);
-      this.hemiLight.groundColor.set(0x18343b);
-      this.hemiLight.intensity = 0.72;
+      this.hemiLight.color.set(0x6ab0e8);
+      this.hemiLight.groundColor.set(0x0a2530);
+      this.hemiLight.intensity = 0.58;
     }
   }
 
   private updateAboveWaterFog(): void {
     const haze = this.parameters.horizonHaze;
-    ABOVE_WATER_FOG_COLOR.set(0xa8bcc8).lerp(new THREE.Color(0xd4c4b0), haze * 0.52);
-    ABOVE_WATER_BACKGROUND.set(0x88b8d4).lerp(new THREE.Color(0xc8d0d8), haze * 0.28);
+    ABOVE_WATER_FOG_COLOR.set(0x2d6a8a).lerp(new THREE.Color(0x6a98b8), haze * 0.32);
+    ABOVE_WATER_BACKGROUND.set(0x1a5078).lerp(new THREE.Color(0x4a88a8), haze * 0.24);
     if (this.underwaterBlend <= 0.001) {
       ACTIVE_FOG.color.copy(ABOVE_WATER_FOG_COLOR);
       ACTIVE_FOG.density = 0.001 + haze * 0.00085;

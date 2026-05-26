@@ -46,7 +46,7 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   const sun = new THREE.DirectionalLight(0xfff0d0, BENCHMARK_LAYOUT.sun.intensity);
   sun.position.set(-98, 60, -104);
   scene.add(sun);
-  const hemisphere = new THREE.HemisphereLight(0x8fb7e8, 0x18343b, 0.68);
+  const hemisphere = new THREE.HemisphereLight(0x6ab0e8, 0x0a2530, 0.58);
   scene.add(hemisphere);
 
   const parameters = createDefaultCascadeSystemParameters();

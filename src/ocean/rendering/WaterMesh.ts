@@ -56,30 +56,30 @@ export type WaterRenderingParameters = {
  * Designed to look good out of the box at the benchmark camera without any GUI tweaks.
  */
 export const DEFAULT_WATER_RENDERING_PARAMETERS: WaterRenderingParameters = {
-  fresnelStrength: 1.08,
-  reflectionStrength: 0.84,
-  refractionStrength: 0.2,
-  absorptionStrength: 0.10,     // slightly stronger for deeper, richer blue in troughs
-  scatteringStrength: 0.42,
-  crestTranslucency: 0.28,
-  skyHazeStrength: 0.72,
+  fresnelStrength: 0.88,
+  reflectionStrength: 0.48,
+  refractionStrength: 0.14,
+  absorptionStrength: 0.19,
+  scatteringStrength: 0.64,      // lively cyan crest scatter
+  crestTranslucency: 0.22,
+  skyHazeStrength: 0.34,          // less warm haze washing reflections to silver
   sparkleStrength: 1.35,
   sparkleSharpness: 0.58,
   foamContrast: 2.1,
   foamBrightness: 0.86,
   foamStrength: 0.54,
-  deepWaterColor: 0x051f3a,       // deep saturated blue (vibrant open-ocean look)
-  shallowWaterColor: 0x0a4862,    // cool blue-teal
-  midWaterColor: 0x073a52,        // cool blue bridge tone
-  refractedWaterColor: 0x0a5468,  // cooler refracted tint
-  skyReflectionColor: 0x8abdd8,   // cooler sky blue reflection
-  subsurfaceColor: 0x6ccfe0,      // bright cool blue scatter for lively crests
-  foamColor: 0xeef4f6,            // cool clean sea foam
-  // Sky gradient (coordinated with OceanEnvironment) — cooler & deeper for blue ocean
-  skyHorizonColor: 0x9ac4d4,
-  skyLowColor: 0x66a4c4,
-  skyZenithColor: 0x152d58,
-  skyWarmHazeColor: 0xf2e0cc,
+  deepWaterColor: 0x023858,       // rich navy — deep troughs without crushing to black
+  shallowWaterColor: 0x0884b0,    // bright saturated medium blue
+  midWaterColor: 0x056a8a,        // teal bridge between trough and crest
+  refractedWaterColor: 0x0898b8,  // vivid refracted tint
+  skyReflectionColor: 0x48a8d8,   // saturated sky blue (not washed-out silver)
+  subsurfaceColor: 0x38d4f0,      // bright cyan scatter on sun-facing crests
+  foamColor: 0xe8f2f8,
+  // Sky gradient (coordinated with OceanEnvironment) — deeper blues, less warm wash
+  skyHorizonColor: 0x5a9ec4,
+  skyLowColor: 0x2d78aa,
+  skyZenithColor: 0x0a1e3d,
+  skyWarmHazeColor: 0xc8b498,
 };
 
 export class WaterMesh {
@@ -170,10 +170,12 @@ export class WaterMesh {
     );
 
     this.material = new THREE.MeshStandardNodeMaterial({
-      color: new THREE.Color(0x0a4862),
-      roughness: 0.16,
+      color: new THREE.Color(0x0884b0),
+      roughness: 0.14,
       metalness: 0.01,
     });
+    // colorNode already bakes Fresnel, scatter, and sun glitter — skip PBR re-lighting
+    this.material.lights = false;
     this.material.flatShading = false;
     this.material.transparent = true;
     this.material.depthWrite = true;
@@ -203,17 +205,23 @@ export class WaterMesh {
 
       const facing = saturate(worldNormal.y.mul(0.5).add(0.5));
       const slope = oneMinus(facing);
-      const waveShade = pow(saturate(slope), float(0.48));
+      const waveShade = pow(saturate(slope), float(0.38));
+      // Steep trough faces read as deeper, darker water for strong blue variation.
+      const troughShade = pow(oneMinus(saturate(worldNormal.y)), float(1.35));
       const waterDepth = max(positionWorld.y.sub(seaFloorY), float(0.1));
       const absorption = oneMinus(exp(waterDepth.mul(this.absorptionStrengthUniform).mul(-1)));
-      const depthColor = mix(shallowWater, deepWater, saturate(absorption));
-      // Lower midWater influence so the new deeper blue palette reads more strongly
-      const baseColor = mix(depthColor, midWater, saturate(waveShade.mul(0.22)));
+      const depthColor = mix(
+        shallowWater,
+        deepWater,
+        saturate(absorption.add(troughShade.mul(0.34))),
+      );
+      const baseColor = mix(depthColor, midWater, saturate(waveShade.mul(0.55)));
+      const troughColor = mix(baseColor, deepWater, troughShade.mul(0.46));
 
       const sunDirection = normalize(vec3(this.sunDirectionUniform));
-      const sunFacing = pow(saturate(dot(worldNormal, sunDirection)), float(2.2));
+      const sunFacing = pow(saturate(dot(worldNormal, sunDirection)), float(2.0));
       const crestScatter = sunFacing.mul(waveShade).mul(this.scatteringStrengthUniform);
-      const scattered = mix(baseColor, subSurface, saturate(crestScatter));
+      const scattered = mix(troughColor, subSurface, saturate(crestScatter));
 
       const foamUv = vec2(
         positionWorld.x.add(patchHalf).div(this.patchSizeUniform),
@@ -231,7 +239,7 @@ export class WaterMesh {
         simulatedNormal.xz.mul(this.refractionStrengthUniform).mul(float(0.026)),
       );
       const refractedScene = viewportSharedTexture(refractUv).rgb;
-      const refracted = mix(refractedScene, refractedWater, saturate(absorption.mul(0.72)));
+      const refracted = mix(refractedScene, refractedWater, saturate(absorption.mul(0.88)));
       const reflectionVector = reflect(viewDirection.mul(float(-1)), worldNormal);
       const skyDir = normalize(reflectionVector);
       const skyHeight = saturate(skyDir.y.mul(0.58).add(0.42));
@@ -251,13 +259,15 @@ export class WaterMesh {
       const reflectedSky = mix(
         skyGradient,
         skyWarmHaze,
-        saturate(skyHorizonHaze.add(skySunAlignment.mul(0.62))),
+        saturate(skyHorizonHaze.mul(0.48).add(skySunAlignment.mul(0.32))),
       );
       const skyTint = this.skyReflectionColorUniform;
+      const bodyColor = mix(scattered, refracted, this.refractionStrengthUniform.mul(0.16));
+      const skyReflection = mix(reflectedSky, skyTint, float(0.05));
       const reflected = mix(
-        mix(scattered, refracted, this.refractionStrengthUniform.mul(0.3)),
-        mix(reflectedSky, skyTint, float(0.12)),
-        saturate(fresnel.mul(this.reflectionStrengthUniform)),
+        bodyColor,
+        skyReflection,
+        saturate(fresnel.mul(this.reflectionStrengthUniform).mul(0.82)),
       );
 
       // Sun glitter from simulated normals, slope, and Jacobian compression (no scrolling noise).
@@ -289,8 +299,10 @@ export class WaterMesh {
         .mul(this.foamStrengthUniform)
         .mul(pow(saturate(worldNormal.y), float(0.45)));
 
-      const crestGlow = subSurface.mul(crestScatter.mul(0.35));
-      return mix(reflected.add(color(0xf8fdff).mul(sparkle)).add(crestGlow), litFoam, saturate(foamMask));
+      const crestGlow = subSurface.mul(crestScatter.mul(0.68));
+      const ambientFill = mix(deepWater, shallowWater, float(0.38)).mul(float(0.12));
+      const vibrantWater = reflected.add(color(0xf8fdff).mul(sparkle)).add(crestGlow).add(ambientFill);
+      return mix(vibrantWater, litFoam, saturate(foamMask));
     })();
 
     this.material.roughnessNode = Fn(() => {
@@ -318,8 +330,8 @@ export class WaterMesh {
         normalWorld.xz.mul(this.refractionStrengthUniform).mul(float(0.018)),
       );
       // Cooler underwater tint to match the new vibrant blue ocean palette
-      const underwaterTint = color(0x082a3e);
-      return mix(viewportSharedTexture(refractUv).rgb, underwaterTint, float(0.34));
+      const underwaterTint = color(0x042840);
+      return mix(viewportSharedTexture(refractUv).rgb, underwaterTint, float(0.48));
     })();
     this.material.backdropAlphaNode = this.refractionStrengthUniform.mul(0.28);
 
