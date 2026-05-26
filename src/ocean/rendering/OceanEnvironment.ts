@@ -50,18 +50,18 @@ export const DEFAULT_OCEAN_ENVIRONMENT_PARAMETERS: OceanEnvironmentParameters = 
   underwaterParticleStrength: 0.48,
   waterlineBlendDistance: 3.5,
   underwaterMode: 'auto',
-  // Sky gradient (coordinated with WaterMesh defaults)
-  skyHorizonColor: 0xb8d6e2,
-  skyLowColor: 0x70b8d2,
-  skyZenithColor: 0x1a3a70,
-  skyWarmHazeColor: 0xf9e8d2,
+  // Sky gradient (coordinated with WaterMesh — cooler & deeper for blue ocean)
+  skyHorizonColor: 0x9ac4d4,
+  skyLowColor: 0x66a4c4,
+  skyZenithColor: 0x152d58,
+  skyWarmHazeColor: 0xf2e0cc,
 };
 
-// Richer, more atmospheric colors coordinated with the new water palette
-const ABOVE_WATER_BACKGROUND = new THREE.Color(0x8abfd8);
-const UNDERWATER_BACKGROUND = new THREE.Color(0x05293c);
-const ABOVE_WATER_FOG_COLOR = new THREE.Color(0xa8c8d4);
-const UNDERWATER_FOG_COLOR = new THREE.Color(0x0a374a);
+// Cooler, deeper blues for the new vibrant blue ocean palette
+const ABOVE_WATER_BACKGROUND = new THREE.Color(0x7fb8d4);
+const UNDERWATER_BACKGROUND = new THREE.Color(0x041f32);
+const ABOVE_WATER_FOG_COLOR = new THREE.Color(0x9cc4d8);
+const UNDERWATER_FOG_COLOR = new THREE.Color(0x082a3e);
 const ACTIVE_FOG = new THREE.FogExp2(ABOVE_WATER_FOG_COLOR, 0.001);
 const SUN_DISK_RADIUS = 52;
 const SUN_DISTANCE = 620;
@@ -134,7 +134,7 @@ export class OceanEnvironment {
     });
     floorMaterial.colorNode = Fn(() => {
       const sand = color(0x8f8a72);
-      const tealShadow = color(0x1a4a55);
+      const tealShadow = color(0x153a48);  // cooler shadow to match new blue water palette
       const waveA = sin(positionWorld.x.mul(0.78).add(this.timeUniform.mul(0.72)));
       const waveB = sin(positionWorld.z.mul(0.68).sub(this.timeUniform.mul(0.56)));
       const waveC = cos(

@@ -59,7 +59,7 @@ export const DEFAULT_WATER_RENDERING_PARAMETERS: WaterRenderingParameters = {
   fresnelStrength: 1.08,
   reflectionStrength: 0.84,
   refractionStrength: 0.2,
-  absorptionStrength: 0.088,
+  absorptionStrength: 0.10,     // slightly stronger for deeper, richer blue in troughs
   scatteringStrength: 0.42,
   crestTranslucency: 0.28,
   skyHazeStrength: 0.72,
@@ -68,18 +68,18 @@ export const DEFAULT_WATER_RENDERING_PARAMETERS: WaterRenderingParameters = {
   foamContrast: 2.1,
   foamBrightness: 0.86,
   foamStrength: 0.54,
-  deepWaterColor: 0x0a2848,       // rich deep ultramarine-teal
-  shallowWaterColor: 0x0c6a65,    // vibrant living teal
-  midWaterColor: 0x0a535a,        // bridge tone with depth
-  refractedWaterColor: 0x0e7c73,  // richer refracted tint
-  skyReflectionColor: 0x9acde0,   // clean sky reflection
-  subsurfaceColor: 0x72d9c4,      // lively aqua scatter for crests
-  foamColor: 0xf0f4f1,            // clean natural sea foam
-  // Sky gradient (coordinated with OceanEnvironment)
-  skyHorizonColor: 0xb8d6e2,
-  skyLowColor: 0x70b8d2,
-  skyZenithColor: 0x1a3a70,
-  skyWarmHazeColor: 0xf9e8d2,
+  deepWaterColor: 0x051f3a,       // deep saturated blue (vibrant open-ocean look)
+  shallowWaterColor: 0x0a4862,    // cool blue-teal
+  midWaterColor: 0x073a52,        // cool blue bridge tone
+  refractedWaterColor: 0x0a5468,  // cooler refracted tint
+  skyReflectionColor: 0x8abdd8,   // cooler sky blue reflection
+  subsurfaceColor: 0x6ccfe0,      // bright cool blue scatter for lively crests
+  foamColor: 0xeef4f6,            // cool clean sea foam
+  // Sky gradient (coordinated with OceanEnvironment) — cooler & deeper for blue ocean
+  skyHorizonColor: 0x9ac4d4,
+  skyLowColor: 0x66a4c4,
+  skyZenithColor: 0x152d58,
+  skyWarmHazeColor: 0xf2e0cc,
 };
 
 export class WaterMesh {
@@ -170,7 +170,7 @@ export class WaterMesh {
     );
 
     this.material = new THREE.MeshStandardNodeMaterial({
-      color: new THREE.Color(0x0c6a65),
+      color: new THREE.Color(0x0a4862),
       roughness: 0.16,
       metalness: 0.01,
     });
@@ -207,7 +207,8 @@ export class WaterMesh {
       const waterDepth = max(positionWorld.y.sub(seaFloorY), float(0.1));
       const absorption = oneMinus(exp(waterDepth.mul(this.absorptionStrengthUniform).mul(-1)));
       const depthColor = mix(shallowWater, deepWater, saturate(absorption));
-      const baseColor = mix(depthColor, midWater, saturate(waveShade.mul(0.28)));
+      // Lower midWater influence so the new deeper blue palette reads more strongly
+      const baseColor = mix(depthColor, midWater, saturate(waveShade.mul(0.22)));
 
       const sunDirection = normalize(vec3(this.sunDirectionUniform));
       const sunFacing = pow(saturate(dot(worldNormal, sunDirection)), float(2.2));
@@ -316,8 +317,8 @@ export class WaterMesh {
       const refractUv = screenUV.add(
         normalWorld.xz.mul(this.refractionStrengthUniform).mul(float(0.018)),
       );
-      // Richer underwater tint that matches the new environment palette
-      const underwaterTint = color(0x0a3748);
+      // Cooler underwater tint to match the new vibrant blue ocean palette
+      const underwaterTint = color(0x082a3e);
       return mix(viewportSharedTexture(refractUv).rgb, underwaterTint, float(0.34));
     })();
     this.material.backdropAlphaNode = this.refractionStrengthUniform.mul(0.28);

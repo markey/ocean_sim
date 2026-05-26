@@ -664,11 +664,11 @@ export class DebugControls {
       .onChange(syncWaterRendering);
     surfacePolishFolder
       .addColor(this.state.rendering, 'midWaterColor')
-      .name('Mid color')
+      .name('Mid water')
       .onChange(syncWaterRendering);
     surfacePolishFolder
       .addColor(this.state.rendering, 'refractedWaterColor')
-      .name('Refracted tint')
+      .name('Refracted water')
       .onChange(syncWaterRendering);
     surfacePolishFolder
       .addColor(this.state.rendering, 'skyReflectionColor')
