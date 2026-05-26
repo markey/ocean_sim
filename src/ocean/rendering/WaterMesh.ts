@@ -23,6 +23,11 @@ import {
   viewportSharedTexture,
 } from 'three/tsl';
 import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
+import {
+  RENDERED_SURFACE_SAMPLE_SCRATCH,
+  sampleDisplacedGridSurface,
+  type RenderedSurfaceSample,
+} from '../buoyancy/RenderedSurfaceSample';
 
 export type WaterRenderingParameters = {
   fresnelStrength: number;
@@ -86,7 +91,11 @@ export class WaterMesh {
   readonly mesh: THREE.Mesh;
   readonly material: THREE.MeshStandardNodeMaterial;
   private readonly basePositions: Float32Array;
-  private readonly resolution: number;
+  private worldSurfaceX = new Float32Array(0);
+  private worldSurfaceY = new Float32Array(0);
+  private worldSurfaceZ = new Float32Array(0);
+  private surfaceGridResolution = 0;
+  private surfacePatchSize = 640;
   private readonly patchSizeUniform = uniform(640);
   private readonly foamStrengthUniform = uniform(DEFAULT_WATER_RENDERING_PARAMETERS.foamStrength);
   private readonly fresnelStrengthUniform = uniform(
@@ -160,7 +169,6 @@ export class WaterMesh {
 
   constructor(surface: OceanSurfaceProvider) {
     const { resolution, patchSize } = surface.parameters;
-    this.resolution = resolution;
     this.patchSizeUniform.value = patchSize;
     const geometry = new THREE.PlaneGeometry(
       patchSize,
@@ -350,7 +358,8 @@ export class WaterMesh {
     const normalAttribute = this.mesh.geometry.attributes.normal as THREE.BufferAttribute;
     const positionArray = positions.array as Float32Array;
     const normalArray = normalAttribute.array as Float32Array;
-    const resolution = surface.parameters.resolution;
+    const { resolution, patchSize } = surface.parameters;
+    this.ensureSurfaceGrid(resolution, patchSize);
 
     // PlaneGeometry is XY; local Z becomes world Y after the mesh X rotation.
     for (let y = 0; y < resolution; y += 1) {
@@ -376,6 +385,11 @@ export class WaterMesh {
         normalArray[attributeIndex] = worldNormalX;
         normalArray[attributeIndex + 1] = -worldNormalZ;
         normalArray[attributeIndex + 2] = worldNormalY;
+
+        // Cache world-space displaced vertices (mesh rotation: world Y = local Z, world Z = -local Y).
+        this.worldSurfaceX[simIndex] = positionArray[attributeIndex] ?? 0;
+        this.worldSurfaceY[simIndex] = positionArray[attributeIndex + 2] ?? 0;
+        this.worldSurfaceZ[simIndex] = -(positionArray[attributeIndex + 1] ?? 0);
       }
     }
 
@@ -389,38 +403,44 @@ export class WaterMesh {
   }
 
   /**
-   * World-space water height at (worldX, worldZ) from the displaced mesh vertices.
-   * Matches the rendered surface used by buoyancy (call after {@link update}).
+   * World-space height and normal on the rendered displaced mesh at (worldX, worldZ).
+   * Uses the cached displaced vertex grid (same geometry as the mesh, O(1) sampling).
+   * Must be called after {@link update} in the same frame.
    */
+  sampleRenderedSurface(
+    worldX: number,
+    worldZ: number,
+    target: RenderedSurfaceSample = RENDERED_SURFACE_SAMPLE_SCRATCH,
+  ): RenderedSurfaceSample {
+    return sampleDisplacedGridSurface(
+      worldX,
+      worldZ,
+      this.surfacePatchSize,
+      this.surfaceGridResolution,
+      this.worldSurfaceX,
+      this.worldSurfaceY,
+      this.worldSurfaceZ,
+      target,
+    );
+  }
+
+  /** @deprecated Use {@link sampleRenderedSurface} for buoyancy — matches the visible mesh. */
   sampleWorldHeight(worldX: number, worldZ: number): number {
-    const positionAttribute = this.mesh.geometry.attributes.position as THREE.BufferAttribute;
-    const positions = positionAttribute.array as Float32Array;
-    const patchSize = this.patchSizeUniform.value;
-    const resolution = this.resolution;
-    const halfPatch = patchSize * 0.5;
-    const wrappedU = (worldX + halfPatch) / patchSize - Math.floor((worldX + halfPatch) / patchSize);
-    const wrappedV = (worldZ + halfPatch) / patchSize - Math.floor((worldZ + halfPatch) / patchSize);
-    const su = wrappedU * (resolution - 1);
-    const sv = wrappedV * (resolution - 1);
-    const x0 = Math.floor(su);
-    const y0 = Math.floor(sv);
-    const x1 = Math.min(x0 + 1, resolution - 1);
-    const y1 = Math.min(y0 + 1, resolution - 1);
-    const fu = su - x0;
-    const fv = sv - y0;
+    return this.sampleRenderedSurface(worldX, worldZ).height;
+  }
 
-    const readWorldY = (simX: number, simY: number) => {
-      const vertexIndex = (resolution - 1 - simY) * resolution + simX;
-      return positions[vertexIndex * 3 + 2] ?? 0;
-    };
+  private ensureSurfaceGrid(resolution: number, patchSize: number): void {
+    this.surfacePatchSize = patchSize;
 
-    const h00 = readWorldY(x0, y0);
-    const h10 = readWorldY(x1, y0);
-    const h01 = readWorldY(x0, y1);
-    const h11 = readWorldY(x1, y1);
-    const lerp = (a: number, b: number, t: number) => a * (1 - t) + b * t;
+    if (this.surfaceGridResolution === resolution) {
+      return;
+    }
 
-    return lerp(lerp(h00, h10, fu), lerp(h01, h11, fu), fv);
+    const vertexCount = resolution * resolution;
+    this.worldSurfaceX = new Float32Array(vertexCount);
+    this.worldSurfaceY = new Float32Array(vertexCount);
+    this.worldSurfaceZ = new Float32Array(vertexCount);
+    this.surfaceGridResolution = resolution;
   }
 
   /** Height scale is applied per cascade; kept for debug UI compatibility. */

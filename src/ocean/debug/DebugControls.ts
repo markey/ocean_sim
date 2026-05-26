@@ -720,25 +720,11 @@ export class DebugControls {
         .onChange(syncBuoyancy);
       buoyancyFolder.add(this.state.buoyancy, 'boatEnabled').name('Boat').onChange(syncBuoyancy);
       buoyancyFolder
-        .add(this.state.buoyancy, 'verticalStiffness', 8, 120, 1)
-        .name('Vertical stiffness')
-        .onChange(syncBuoyancy);
-      buoyancyFolder
-        .add(this.state.buoyancy, 'dampingRatio', 0.5, 2, 0.05)
-        .name('Damping ratio')
-        .decimals(2)
-        .onChange(syncBuoyancy);
-      buoyancyFolder
-        .add(this.state.buoyancy, 'heightFollowRate', 1, 16, 0.5)
-        .name('Height follow')
-        .decimals(1)
-        .onChange(syncBuoyancy);
-      buoyancyFolder
         .add(this.state.buoyancy, 'linearDrag', 0, 4, 0.1)
         .name('Linear drag')
         .onChange(syncBuoyancy);
       buoyancyFolder
-        .add(this.state.buoyancy, 'orientationBlend', 0.5, 12, 0.1)
+        .add(this.state.buoyancy, 'orientationBlend', 0.5, 20, 0.1)
         .name('Orientation blend')
         .onChange(syncBuoyancy);
       buoyancyFolder

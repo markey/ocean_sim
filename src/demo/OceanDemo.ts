@@ -76,6 +76,9 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   scene.add(debugTextureView.mesh);
   scene.add(floatingBuoy.group);
   scene.add(floatingBoat.group);
+  water.mesh.renderOrder = 0;
+  floatingBuoy.group.renderOrder = 1;
+  floatingBoat.group.renderOrder = 1;
 
   await cascadeSystem.init(renderer);
   water.update(renderer, cascadeSystem.getCombinedSurface());
@@ -138,6 +141,8 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   );
   applyBenchmarkView();
   water.update(renderer, cascadeSystem.getCombinedSurface());
+  floatingBuoy.update(1 / 60, water);
+  floatingBoat.update(1 / 60, water);
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'h' || event.key === 'H') {
@@ -162,7 +167,8 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
   window.addEventListener('resize', resize);
 
   renderer.setAnimationLoop(() => {
-    const deltaSeconds = Math.min(clock.getDelta(), 1 / 30);
+    // Use real elapsed time so wave motion stays 1:1 with the clock even when FPS dips.
+    const deltaSeconds = Math.min(clock.getDelta(), 0.1);
 
     cascadeSystem.update(renderer, deltaSeconds);
     const surface = cascadeSystem.getCombinedSurface();
@@ -170,8 +176,8 @@ export async function startOceanDemo(root: HTMLDivElement): Promise<void> {
     const elapsedSeconds = clock.elapsedTime;
     oceanEnvironment.update(camera, elapsedSeconds);
     water.updateRendering(oceanEnvironment.getSunDirection());
-    floatingBuoy.update(deltaSeconds, surface);
-    floatingBoat.update(deltaSeconds, surface);
+    floatingBuoy.update(deltaSeconds, water);
+    floatingBoat.update(deltaSeconds, water);
     controls.update();
     debugTextureView.updateLayout(camera, window.innerWidth, window.innerHeight);
     stats.update(deltaSeconds);

@@ -1,7 +1,6 @@
 import * as THREE from 'three/webgpu';
-import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
-import { followTargetHeight, integrateVerticalBuoyancy } from './buoyancyIntegration';
-import { sampleOceanSurfaceHeight } from './OceanSurfaceSampler';
+import type { WaterMesh } from '../rendering/WaterMesh';
+import { lockToSurfaceHeight } from './buoyancyIntegration';
 import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from './types';
 
 export type FloatingSphereOptions = {
@@ -15,16 +14,9 @@ export type FloatingSphereOptions = {
 
 const up = new THREE.Vector3(0, 1, 0);
 const targetQuaternion = new THREE.Quaternion();
-const surfaceSampleScratch = {
-  height: 0,
-  displacementX: 0,
-  displacementZ: 0,
-  normal: new THREE.Vector3(),
-};
 
 /**
- * Buoyant sphere driven by simulated ocean height and normals.
- * Vertical motion uses a spring toward η + radius; orientation aligns to the surface normal.
+ * Buoyant sphere driven by the rendered ocean mesh height and normals.
  */
 export class FloatingSphere {
   readonly mesh: THREE.Mesh;
@@ -34,7 +26,6 @@ export class FloatingSphere {
   readonly velocity: THREE.Vector3;
   readonly buoyancy: BuoyancyParameters;
   enabled = true;
-  private smoothedTargetY = 0;
 
   constructor(options: FloatingSphereOptions = {}) {
     this.radius = options.radius ?? 2.4;
@@ -42,7 +33,6 @@ export class FloatingSphere {
     this.buoyancy = { ...DEFAULT_BUOYANCY_PARAMETERS, ...options.buoyancy };
     this.position = (options.position ?? new THREE.Vector3(12, 6, 8)).clone();
     this.velocity = new THREE.Vector3();
-    this.smoothedTargetY = this.position.y;
 
     const geometry = new THREE.SphereGeometry(this.radius, 32, 24);
     const material = new THREE.MeshStandardMaterial({
@@ -61,50 +51,28 @@ export class FloatingSphere {
       this.position.copy(position);
     }
     this.velocity.set(0, 0, 0);
-    this.smoothedTargetY = this.position.y;
     this.syncMeshTransform();
   }
 
-  update(deltaSeconds: number, surface: OceanSurfaceProvider): void {
+  update(deltaSeconds: number, water: WaterMesh): void {
     if (!this.enabled || deltaSeconds <= 0) {
       return;
     }
 
-    const waterHeight = sampleOceanSurfaceHeight(
-      surface,
-      this.position.x,
-      this.position.z,
-      surfaceSampleScratch,
-    );
-    const surfaceY = waterHeight + this.radius;
-    const targetY = followTargetHeight(
-      this.smoothedTargetY,
-      surfaceY,
-      this.buoyancy.heightFollowRate,
-      deltaSeconds,
-    );
-    this.smoothedTargetY = targetY;
-    const vertical = integrateVerticalBuoyancy(
-      this.position.y,
-      this.velocity.y,
-      targetY,
-      surfaceY,
-      this.mass,
-      this.buoyancy,
-      deltaSeconds,
-    );
+    const surface = water.sampleRenderedSurface(this.position.x, this.position.z);
+    const surfaceY = surface.height + this.radius;
+    const locked = lockToSurfaceHeight(this.position.y, surfaceY, deltaSeconds);
 
-    this.position.y = vertical.positionY;
-    this.velocity.y = vertical.velocityY;
+    this.position.y = locked.positionY;
+    this.velocity.y = locked.velocityY;
     this.velocity.x *= Math.max(0, 1 - this.buoyancy.linearDrag * deltaSeconds);
     this.velocity.z *= Math.max(0, 1 - this.buoyancy.linearDrag * deltaSeconds);
     this.position.x += this.velocity.x * deltaSeconds;
     this.position.z += this.velocity.z * deltaSeconds;
     this.syncMeshTransform();
 
-    const blend = 1 - Math.exp(-this.buoyancy.orientationBlend * deltaSeconds);
-    targetQuaternion.setFromUnitVectors(up, surfaceSampleScratch.normal);
-    this.mesh.quaternion.slerp(targetQuaternion, blend);
+    targetQuaternion.setFromUnitVectors(up, surface.normal);
+    this.mesh.quaternion.copy(targetQuaternion);
   }
 
   private syncMeshTransform(): void {

@@ -1,15 +1,14 @@
 import * as THREE from 'three/webgpu';
-import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
+import type { WaterMesh } from '../rendering/WaterMesh';
 import { buildHeroBoatVisual } from './buildHeroBoatVisual';
-import { followTargetHeight, integrateVerticalBuoyancy } from './buoyancyIntegration';
-import { sampleOceanSurfacePoint } from './OceanSurfaceSampler';
+import { lockToSurfaceHeight } from './buoyancyIntegration';
 import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from './types';
 
 export type FloatingBoatOptions = {
   length?: number;
   width?: number;
   mass?: number;
-  /** Hull center sits this far below the sampled water plane at rest. */
+  /** Hull depth below the waterline sample points (visual only). */
   draft?: number;
   position?: THREE.Vector3;
   buoyancy?: Partial<BuoyancyParameters>;
@@ -32,7 +31,7 @@ const localOffset = new THREE.Vector3();
 
 /**
  * Simple boat hull with four corner sample points for pitch, roll, and height.
- * Each point reads the simulated displaced surface; the hull orients to the fitted plane.
+ * Samples the rendered displaced water mesh so collision matches what you see.
  */
 export class FloatingBoat {
   readonly group: THREE.Group;
@@ -45,7 +44,6 @@ export class FloatingBoat {
   readonly buoyancy: BuoyancyParameters;
   readonly samplePoints: SamplePoint[];
   enabled = true;
-  private smoothedTargetY = 0;
 
   constructor(options: FloatingBoatOptions = {}) {
     this.length = options.length ?? 14;
@@ -55,7 +53,6 @@ export class FloatingBoat {
     this.buoyancy = { ...DEFAULT_BUOYANCY_PARAMETERS, ...options.buoyancy };
     this.position = (options.position ?? new THREE.Vector3(-14, 5, -10)).clone();
     this.velocity = new THREE.Vector3();
-    this.smoothedTargetY = this.position.y;
 
     const halfLength = this.length * 0.5;
     const halfWidth = this.width * 0.5;
@@ -91,54 +88,25 @@ export class FloatingBoat {
       this.position.copy(position);
     }
     this.velocity.set(0, 0, 0);
-    this.smoothedTargetY = this.position.y;
     this.group.quaternion.identity();
     this.syncGroupTransform();
   }
 
-  update(deltaSeconds: number, surface: OceanSurfaceProvider): void {
+  update(deltaSeconds: number, water: WaterMesh): void {
     if (!this.enabled || deltaSeconds <= 0) {
       return;
     }
 
-    let averageWaterHeight = 0;
+    let requiredCenterY = -Infinity;
 
     for (const point of this.samplePoints) {
       localOffset.copy(point.local).applyQuaternion(this.group.quaternion);
-      point.world.set(
-        this.position.x + localOffset.x,
-        this.position.y,
-        this.position.z + localOffset.z,
-      );
-      sampleOceanSurfacePoint(surface, point.world.x, point.world.z, point.water);
-      averageWaterHeight += point.water.y;
+      const worldX = this.position.x + localOffset.x;
+      const worldZ = this.position.z + localOffset.z;
+      const surface = water.sampleRenderedSurface(worldX, worldZ);
+      point.water.set(worldX, surface.height, worldZ);
+      requiredCenterY = Math.max(requiredCenterY, surface.height - localOffset.y);
     }
-
-    averageWaterHeight /= this.samplePoints.length;
-    const surfaceY = averageWaterHeight + this.draft;
-    const targetY = followTargetHeight(
-      this.smoothedTargetY,
-      surfaceY,
-      this.buoyancy.heightFollowRate,
-      deltaSeconds,
-    );
-    this.smoothedTargetY = targetY;
-    const vertical = integrateVerticalBuoyancy(
-      this.position.y,
-      this.velocity.y,
-      targetY,
-      surfaceY,
-      this.mass,
-      this.buoyancy,
-      deltaSeconds,
-    );
-
-    this.position.y = vertical.positionY;
-    this.velocity.y = vertical.velocityY;
-    this.velocity.x *= Math.max(0, 1 - this.buoyancy.linearDrag * deltaSeconds);
-    this.velocity.z *= Math.max(0, 1 - this.buoyancy.linearDrag * deltaSeconds);
-    this.position.x += this.velocity.x * deltaSeconds;
-    this.position.z += this.velocity.z * deltaSeconds;
 
     const bowPort = this.samplePoints[0]!.water;
     const bowStarboard = this.samplePoints[1]!.water;
@@ -157,9 +125,28 @@ export class FloatingBoat {
       fittedNormal.set(0, 1, 0);
     }
 
-    const blend = 1 - Math.exp(-this.buoyancy.orientationBlend * deltaSeconds);
     targetQuaternion.setFromUnitVectors(up, fittedNormal);
-    this.group.quaternion.slerp(targetQuaternion, blend);
+    this.group.quaternion.copy(targetQuaternion);
+
+    // Re-sample once with the updated orientation for the final height solve.
+    requiredCenterY = -Infinity;
+    for (const point of this.samplePoints) {
+      localOffset.copy(point.local).applyQuaternion(this.group.quaternion);
+      const worldX = this.position.x + localOffset.x;
+      const worldZ = this.position.z + localOffset.z;
+      const surface = water.sampleRenderedSurface(worldX, worldZ);
+      point.water.set(worldX, surface.height, worldZ);
+      requiredCenterY = Math.max(requiredCenterY, surface.height - localOffset.y);
+    }
+
+    const locked = lockToSurfaceHeight(this.position.y, requiredCenterY, deltaSeconds);
+    this.position.y = locked.positionY;
+    this.velocity.y = locked.velocityY;
+
+    this.velocity.x *= Math.max(0, 1 - this.buoyancy.linearDrag * deltaSeconds);
+    this.velocity.z *= Math.max(0, 1 - this.buoyancy.linearDrag * deltaSeconds);
+    this.position.x += this.velocity.x * deltaSeconds;
+    this.position.z += this.velocity.z * deltaSeconds;
     this.syncGroupTransform();
   }
 

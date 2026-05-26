@@ -25,14 +25,15 @@ function sampleBilinearChannel(
 ): number {
   const wrappedU = u - Math.floor(u);
   const wrappedV = v - Math.floor(v);
-  const su = wrappedU * resolution;
-  const sv = wrappedV * resolution;
-  const x0 = Math.floor(su) % resolution;
-  const y0 = Math.floor(sv) % resolution;
+  // Match WaterMesh grid indexing: N vertices span the patch with periodic wrap.
+  const su = wrappedU * (resolution - 1);
+  const sv = wrappedV * (resolution - 1);
+  const x0 = Math.floor(su);
+  const y0 = Math.floor(sv);
   const x1 = (x0 + 1) % resolution;
   const y1 = (y0 + 1) % resolution;
-  const fu = su - Math.floor(su);
-  const fv = sv - Math.floor(sv);
+  const fu = su - x0;
+  const fv = sv - y0;
 
   const read = (x: number, y: number) => source[(y * resolution + x) * 4 + channel] ?? 0;
 
@@ -103,7 +104,7 @@ function sampleOceanSurfaceAtWorldColumn(
   // Tessendorf horizontal chop moves the grid vertex away from its FFT sample point.
   // Iterating this inverse lookup finds the source sample whose displaced XZ lands
   // under the queried world column, which is the surface used for collision.
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < 6; i += 1) {
     sampleOceanSurfaceRaw(surface, sampleX, sampleZ, target);
     sampleX = worldX - target.displacementX;
     sampleZ = worldZ - target.displacementZ;

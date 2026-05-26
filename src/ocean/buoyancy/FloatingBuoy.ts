@@ -1,7 +1,6 @@
 import * as THREE from 'three/webgpu';
-import type { OceanSurfaceProvider } from '../simulation/OceanSurfaceProvider';
-import { followTargetHeight, integrateVerticalBuoyancy } from './buoyancyIntegration';
-import { sampleOceanSurfaceHeight } from './OceanSurfaceSampler';
+import type { WaterMesh } from '../rendering/WaterMesh';
+import { lockToSurfaceHeight } from './buoyancyIntegration';
 import { DEFAULT_BUOYANCY_PARAMETERS, type BuoyancyParameters } from './types';
 
 export type FloatingBuoyOptions = {
@@ -13,12 +12,6 @@ export type FloatingBuoyOptions = {
 
 const up = new THREE.Vector3(0, 1, 0);
 const targetQuaternion = new THREE.Quaternion();
-const surfaceSampleScratch = {
-  height: 0,
-  displacementX: 0,
-  displacementZ: 0,
-  normal: new THREE.Vector3(),
-};
 
 /**
  * Simple channel marker buoy that bobs on the simulated ocean surface.
@@ -33,7 +26,6 @@ export class FloatingBuoy {
   /** Approximate float radius used for height sampling. */
   readonly floatRadius: number;
   enabled = true;
-  private smoothedTargetY = 0;
 
   constructor(options: FloatingBuoyOptions = {}) {
     this.mass = options.mass ?? 42;
@@ -41,7 +33,6 @@ export class FloatingBuoy {
     this.buoyancy = { ...DEFAULT_BUOYANCY_PARAMETERS, ...options.buoyancy };
     this.position = (options.position ?? new THREE.Vector3(-68, 4, -82)).clone();
     this.velocity = new THREE.Vector3();
-    this.smoothedTargetY = this.position.y;
 
     this.group = new THREE.Group();
     this.group.name = 'Floating Buoy';
@@ -54,47 +45,25 @@ export class FloatingBuoy {
       this.position.copy(position);
     }
     this.velocity.set(0, 0, 0);
-    this.smoothedTargetY = this.position.y;
     this.group.quaternion.identity();
     this.syncGroupTransform();
   }
 
-  update(deltaSeconds: number, surface: OceanSurfaceProvider): void {
+  update(deltaSeconds: number, water: WaterMesh): void {
     if (!this.enabled || deltaSeconds <= 0) {
       return;
     }
 
-    const waterHeight = sampleOceanSurfaceHeight(
-      surface,
-      this.position.x,
-      this.position.z,
-      surfaceSampleScratch,
-    );
-    const surfaceY = waterHeight + this.floatRadius;
-    const targetY = followTargetHeight(
-      this.smoothedTargetY,
-      surfaceY,
-      this.buoyancy.heightFollowRate,
-      deltaSeconds,
-    );
-    this.smoothedTargetY = targetY;
-    const vertical = integrateVerticalBuoyancy(
-      this.position.y,
-      this.velocity.y,
-      targetY,
-      surfaceY,
-      this.mass,
-      this.buoyancy,
-      deltaSeconds,
-    );
+    const surface = water.sampleRenderedSurface(this.position.x, this.position.z);
+    const surfaceY = surface.height + this.floatRadius;
+    const locked = lockToSurfaceHeight(this.position.y, surfaceY, deltaSeconds);
 
-    this.position.y = vertical.positionY;
-    this.velocity.y = vertical.velocityY;
+    this.position.y = locked.positionY;
+    this.velocity.y = locked.velocityY;
     this.syncGroupTransform();
 
-    const blend = 1 - Math.exp(-this.buoyancy.orientationBlend * deltaSeconds * 0.35);
-    targetQuaternion.setFromUnitVectors(up, surfaceSampleScratch.normal);
-    this.group.quaternion.slerp(targetQuaternion, blend);
+    targetQuaternion.setFromUnitVectors(up, surface.normal);
+    this.group.quaternion.copy(targetQuaternion);
   }
 
   private buildVisual(): THREE.Group {

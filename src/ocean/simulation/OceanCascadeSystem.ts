@@ -141,6 +141,12 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
   /** World-grid displacement resampled from each cascade tile onto the visible patch. */
   private readonly upsampledDisplacement: Record<CascadeId, Float32Array>;
   private frameIndex = 0;
+  /** Accumulated delta for staggered low-res band updates (keeps sim clocks in sync). */
+  private readonly cascadeElapsed: Record<CascadeId, number> = {
+    mid: 0,
+    swell: 0,
+    detail: 0,
+  };
   private renderer: THREE.WebGPURenderer | null = null;
 
   constructor(systemParameters: OceanCascadeSystemParameters) {
@@ -311,19 +317,30 @@ export class OceanCascadeSystem implements OceanSurfaceProvider {
     const { cascades } = this.systemParameters;
 
     // Mid band drives the primary sea surface every frame.
+    this.cascadeElapsed.mid += deltaSeconds;
     if (cascades.mid.enabled) {
-      this.cascades.mid.update(renderer, deltaSeconds, { computeAuxiliaryFields: false });
+      this.cascades.mid.update(renderer, this.cascadeElapsed.mid, { computeAuxiliaryFields: false });
+      this.cascadeElapsed.mid = 0;
       this.refreshUpsampledBands(['mid']);
     }
 
-    // Alternate low-res bands to keep frame cost closer to a single 256² simulation.
+    // Alternate low-res bands to keep frame cost down; accumulate elapsed time so
+    // their simulation clocks stay synchronized with the mid band.
+    this.cascadeElapsed.swell += deltaSeconds;
     if (cascades.swell.enabled && this.frameIndex % 2 === 0) {
-      this.cascades.swell.update(renderer, deltaSeconds, { computeAuxiliaryFields: false });
+      this.cascades.swell.update(renderer, this.cascadeElapsed.swell, {
+        computeAuxiliaryFields: false,
+      });
+      this.cascadeElapsed.swell = 0;
       this.refreshUpsampledBands(['swell']);
     }
 
+    this.cascadeElapsed.detail += deltaSeconds;
     if (cascades.detail.enabled && this.frameIndex % 3 === 1) {
-      this.cascades.detail.update(renderer, deltaSeconds, { computeAuxiliaryFields: false });
+      this.cascades.detail.update(renderer, this.cascadeElapsed.detail, {
+        computeAuxiliaryFields: false,
+      });
+      this.cascadeElapsed.detail = 0;
       this.refreshUpsampledBands(['detail']);
     }
 
