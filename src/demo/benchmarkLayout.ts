@@ -8,10 +8,10 @@ export const BENCHMARK_LAYOUT = {
   },
   boat: {
     position: new THREE.Vector3(0, 5, -18),
-    length: 17,
-    width: 5.2,
-    draft: 1.35,
-    mass: 920,
+    length: 36,
+    width: 10.5,
+    draft: 2.8,
+    mass: 3200,
   },
   buoy: {
     position: new THREE.Vector3(-78, 4, -98),
